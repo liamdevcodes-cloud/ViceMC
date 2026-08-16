@@ -1,0 +1,10 @@
+name: ViceSerial
+version: 1.0.0
+main: net.vicemc.modules.serial.SerialPlugin
+api-version: 1.21
+depend: [ViceCore]
+description: Limited-run serialized items issued by staff through chest GUIs.
+commands:
+  serial:
+    aliases: [limited]
+    permission: vicemc.serial.admin
