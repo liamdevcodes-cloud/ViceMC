@@ -1,0 +1,13 @@
+name: ViceLifestyle
+version: 1.0.0
+main: net.vicemc.modules.lifestyle.LifestylePlugin
+api-version: 1.21
+depend: [ViceCore]
+description: Sleep, thirst, energy drinks, bottle deposits and fitness.
+commands:
+  lifestyle:
+    aliases: [ls]
+permissions:
+  vicemc.lifestyle.admin:
+    description: Manage custom food/drink items and give them to players.
+    default: op
