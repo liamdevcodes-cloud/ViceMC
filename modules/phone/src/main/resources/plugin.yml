@@ -1,0 +1,18 @@
+name: VicePhone
+version: 1.0.0
+main: net.vicemc.modules.phone.PhonePlugin
+api-version: 1.21
+depend: [ViceCore]
+softdepend: [ViceProperties]
+description: A phone in the far-right hotbar slot - bank account, directions to any plot and far chat. In-game chat is proximity based.
+commands:
+  phone:
+    aliases: [cell]
+    description: Open your phone.
+  setphonetexture:
+    description: Set the server-wide phone texture from the item you are holding.
+    permission: vicemc.phone.admin
+permissions:
+  vicemc.phone.admin:
+    description: Change the server-wide phone texture.
+    default: op

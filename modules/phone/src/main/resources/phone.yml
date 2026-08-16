@@ -1,0 +1,22 @@
+# Vice Phone tuning.
+# The phone texture - which item the phone appears as. Hold a custom item and
+# run /setphonetexture to change this for the whole server. The full item
+# (material, custom model data, item model and any other components) is stored
+# under 'phone.item'. The material/model-data keys below are informational
+# fallbacks only.
+phone:
+  item: ""
+  material: DROPPER
+  model-data: 0
+# How close (blocks, horizontal distance) another player must be to you for
+# their in-game chat to be visible. Phone far-chat messages ignore this.
+chat-range: 30
+# Seconds between the hotbar "phone restore" sweeps. The phone is always put
+# back into the far-right hotbar slot, so this is the safety net in case a
+# player somehow manages to move it.
+sweep-seconds: 2
+# Only region tag where players drop their items on death (currently the Blood
+# Diamond Mine). Everywhere else a death keeps the full inventory and
+# experience - nothing drops and nothing is lost. The phone never drops even
+# inside this region.
+death-drop-region-tag: blooddiamond
