@@ -1,0 +1,10 @@
+name: ViceGovernment
+version: 1.3.0
+main: net.vicemc.modules.government.GovernmentPlugin
+api-version: 1.21
+depend: [ViceCore, ViceBusiness]
+description: Government counter, licensing, subsidies, seizures and business bans.
+commands:
+  license:
+  gov:
+  govcounter:
