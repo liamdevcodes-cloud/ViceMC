@@ -1,0 +1,13 @@
+name: ViceEconomy
+version: 1.1.0
+main: net.vicemc.modules.economy.EconomyPlugin
+api-version: 1.21
+depend: [ViceCore]
+description: Player-facing economy commands built on the ViceCore ledger.
+commands:
+  balance:
+  wallet:
+    aliases: [money, bal]
+  pay:
+  economy:
+    aliases: [econ]
