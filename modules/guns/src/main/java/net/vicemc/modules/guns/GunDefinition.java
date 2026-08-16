@@ -18,6 +18,7 @@ public final class GunDefinition {
     public String type = GunType.HANDGUN.name();
     public String material = Material.DROPPER.name();
     public int modelData;
+    public String skinItemModel = "";
     public double damage = 6.0;
     public int magSize = 12;
     public double fireRate = 3.0;
@@ -70,6 +71,7 @@ public final class GunDefinition {
         copy.type = type;
         copy.material = material;
         copy.modelData = modelData;
+        copy.skinItemModel = skinItemModel;
         copy.damage = damage;
         copy.magSize = magSize;
         copy.fireRate = fireRate;

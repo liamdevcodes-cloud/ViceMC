@@ -337,7 +337,14 @@ public final class GunsListener implements Listener {
         int taken = module.guns().consumeAmmo(player, def.gunType().ammo(), need);
         int loaded = Math.min(def.magSize, instance.ammoInMag() + taken);
         module.guns().updateGun(gun, def, instance.serial(), instance.durability(), loaded);
-        module.thirdPersonGunPose().refresh(player);
+        boolean pose = module.thirdPersonGunPose().isPoseGun(gun);
+        module.thirdPersonGunPose().set(player, pose);
+        Bukkit.getScheduler().runTask(module.context().plugin(), () -> {
+            if (player.isOnline() && module.thirdPersonGunPose().isPoseGun(player.getInventory().getItemInMainHand())) {
+                module.thirdPersonGunPose().set(player, true);
+                module.thirdPersonGunPose().refresh(player);
+            }
+        });
         if (loaded < def.magSize) {
             module.playDry(player);
             module.context().notifications().action(player, "&cNot enough ammo - loaded &f" + loaded
@@ -394,7 +401,12 @@ public final class GunsListener implements Listener {
             if (instance != null && instance.defOk()) {
                 boolean pose = module.thirdPersonGunPose().isPoseGun(held);
                 module.thirdPersonGunPose().set(player, pose);
-                if (!pose) Bukkit.getScheduler().runTask(module.context().plugin(), () -> module.thirdPersonGunPose().refresh(player));
+                Bukkit.getScheduler().runTask(module.context().plugin(), () -> {
+                    if (player.isOnline()) {
+                        module.thirdPersonGunPose().set(player,
+                                module.thirdPersonGunPose().isPoseGun(player.getInventory().getItemInMainHand()));
+                    }
+                });
             }
             return;
         }

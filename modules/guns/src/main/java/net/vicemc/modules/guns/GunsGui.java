@@ -288,6 +288,7 @@ public final class GunsGui {
         draft.material = held.getType().name();
         var heldMeta = held.getItemMeta();
         draft.modelData = heldMeta != null && heldMeta.hasCustomModelData() ? heldMeta.getCustomModelData() : 0;
+        draft.skinItemModel = ItemModelSupport.read(held);
         ctx.notifications().msg(player, "&aSkin set to &f" + held.getType().name()
                 + (draft.modelData > 0 ? " &8(#" + draft.modelData + ")" : "") + "&a.");
         openEdit(player);

@@ -11,9 +11,11 @@ import com.comphenix.protocol.wrappers.EnumWrappers;
 import com.comphenix.protocol.wrappers.Pair;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.CrossbowMeta;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.event.EventHandler;
@@ -67,7 +69,9 @@ public final class ThirdPersonGunPose implements Listener {
     }
 
     public void refresh(Player player) {
-        if (protocol != null && player.isOnline()) broadcastEquipment(player, active.contains(player.getUniqueId()));
+        if (protocol != null && player.isOnline() && active.contains(player.getUniqueId())) {
+            broadcastEquipment(player, true);
+        }
     }
 
     @EventHandler
@@ -95,7 +99,8 @@ public final class ThirdPersonGunPose implements Listener {
         } catch (RuntimeException ignored) {
             return;
         }
-        if (!(entity instanceof Player target) || !active.contains(target.getUniqueId())) return;
+        if (!(entity instanceof Player target) || event.getPlayer().getUniqueId().equals(target.getUniqueId())
+                || !active.contains(target.getUniqueId()) || !isPoseGun(target.getInventory().getItemInMainHand())) return;
 
         List<Pair<EnumWrappers.ItemSlot, ItemStack>> pairs = event.getPacket().getSlotStackPairLists().read(0);
         if (pairs == null) return;
@@ -110,23 +115,44 @@ public final class ThirdPersonGunPose implements Listener {
     private void broadcastEquipment(Player target, boolean fake) {
         ItemStack item = target.getInventory().getItemInMainHand();
         if (item == null) item = new ItemStack(Material.AIR);
-        if (fake && !module.guns().isGun(item)) return;
+        if (fake && !isPoseGun(item)) return;
         ItemStack shown = fake ? fakeCrossbow(item) : item.clone();
         PacketContainer packet = protocol.createPacket(PacketType.Play.Server.ENTITY_EQUIPMENT);
         packet.getIntegers().write(0, target.getEntityId());
         packet.getSlotStackPairLists().write(0, List.of(new Pair<>(EnumWrappers.ItemSlot.MAINHAND, shown)));
         for (Player viewer : Bukkit.getOnlinePlayers()) {
+            if (viewer.getUniqueId().equals(target.getUniqueId())) continue;
             protocol.sendServerPacket(viewer, packet);
         }
     }
 
     private ItemStack fakeCrossbow(ItemStack item) {
         ItemStack fake = item.clone();
+        ItemMeta originalMeta = fake.getItemMeta();
         fake.setType(Material.CROSSBOW);
         if (fake.getItemMeta() instanceof CrossbowMeta meta) {
+            copyItemModel(item, originalMeta, meta);
             meta.setChargedProjectiles(List.of(new ItemStack(Material.ARROW)));
             fake.setItemMeta(meta);
         }
         return fake;
+    }
+
+    private void copyItemModel(ItemStack sourceItem, ItemMeta source, ItemMeta target) {
+        if (source == null) return;
+        try {
+            Object hasModel = ItemMeta.class.getMethod("hasItemModel").invoke(source);
+            if (hasModel instanceof Boolean present && present) {
+                Object model = ItemMeta.class.getMethod("getItemModel").invoke(source);
+                if (model != null) {
+                    ItemMeta.class.getMethod("setItemModel", NamespacedKey.class).invoke(target, model);
+                    return;
+                }
+            }
+            NamespacedKey model = NamespacedKey.minecraft(sourceItem.getType().getKey().getKey());
+            ItemMeta.class.getMethod("setItemModel", NamespacedKey.class).invoke(target, model);
+        } catch (ReflectiveOperationException ex) {
+            module.context().logger().fine("Item model component is unavailable; using custom model data fallback.");
+        }
     }
 }

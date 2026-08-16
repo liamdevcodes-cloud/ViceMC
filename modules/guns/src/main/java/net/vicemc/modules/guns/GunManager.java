@@ -145,7 +145,9 @@ public final class GunManager {
         if (def.modelData > 0) {
             builder.modelData(def.modelData);
         }
-        return builder.build();
+        ItemStack result = builder.build();
+        ItemModelSupport.apply(result, def.skinItemModel);
+        return result;
     }
 
     /** Rewrites durability + magazine and their lore on a live gun item. */
