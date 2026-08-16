@@ -1,0 +1,15 @@
+name: ViceGuns
+version: 1.0.0
+main: net.vicemc.modules.guns.GunsPlugin
+api-version: 1.21
+depend: [ViceCore]
+softdepend: [ProtocolLib]
+description: Firearms with unique serials, per-gun durability, magazines, reloading, aiming and an admin arsenal GUI.
+commands:
+  guns:
+    description: Open the firearms arsenal (admin).
+    permission: vicemc.guns.admin
+permissions:
+  vicemc.guns.admin:
+    description: Manage gun definitions, spawn guns and hand out ammo.
+    default: op
