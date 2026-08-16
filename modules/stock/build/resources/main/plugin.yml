@@ -1,0 +1,9 @@
+name: ViceStock
+version: 1.0.0
+main: net.vicemc.modules.stock.StockPlugin
+api-version: 1.21
+depend: [ViceCore, ViceBusiness]
+description: Player stock exchange - company shares, order book trading, dividends and a public trade ledger.
+commands:
+  stock:
+    aliases: [market]
