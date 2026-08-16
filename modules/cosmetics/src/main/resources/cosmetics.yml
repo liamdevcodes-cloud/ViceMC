@@ -1,0 +1,33 @@
+# Collectible cosmetics. Each set is a full armor set with custom model data
+# (and leather colors). Cosmetics do not drop on death except inside the
+# Blood Diamond Mine. Balaclava sets mark the wearer as anonymous for heists.
+sets:
+  business:
+    name: "&8Business Suit"
+    mask: false
+    pieces:
+      helmet: { material: LEATHER_HELMET, model-data: 101, color: "35,35,35" }
+      chestplate: { material: LEATHER_CHESTPLATE, model-data: 102, color: "35,35,35" }
+      leggings: { material: LEATHER_LEGGINGS, model-data: 103, color: "35,35,35" }
+      boots: { material: LEATHER_BOOTS, model-data: 104, color: "35,35,35" }
+  police:
+    name: "&9Police Uniform"
+    mask: false
+    pieces:
+      helmet: { material: LEATHER_HELMET, model-data: 111, color: "20,40,90" }
+      chestplate: { material: LEATHER_CHESTPLATE, model-data: 112, color: "20,40,90" }
+      leggings: { material: LEATHER_LEGGINGS, model-data: 113, color: "20,40,90" }
+      boots: { material: LEATHER_BOOTS, model-data: 114, color: "20,40,90" }
+  balaclava:
+    name: "&8Balaclava"
+    mask: true
+    pieces:
+      helmet: { material: LEATHER_HELMET, model-data: 200, color: "20,20,20" }
+  racer:
+    name: "&eRacing Suit"
+    mask: false
+    pieces:
+      helmet: { material: LEATHER_HELMET, model-data: 121, color: "200,30,30" }
+      chestplate: { material: LEATHER_CHESTPLATE, model-data: 122, color: "200,30,30" }
+      leggings: { material: LEATHER_LEGGINGS, model-data: 123, color: "200,30,30" }
+      boots: { material: LEATHER_BOOTS, model-data: 124, color: "200,30,30" }

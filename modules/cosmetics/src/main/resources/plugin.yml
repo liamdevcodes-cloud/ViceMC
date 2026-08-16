@@ -1,0 +1,8 @@
+name: ViceCosmetics
+version: 1.0.0
+main: net.vicemc.modules.cosmetics.CosmeticsPlugin
+api-version: 1.21
+depend: [ViceCore]
+description: Collectible armor cosmetics that do not drop on death (except in the Blood Diamond Mine).
+commands:
+  cosmetics:
