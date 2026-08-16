@@ -1,5 +1,8 @@
 # Vice Guns tuning.
 #
+# Temporary projectile diagnostics. Disable after testing.
+debug-projectiles: true
+#
 # Ammo item skins - the items admins hand out as ammunition. Change the
 # material / model-data if you want a specific custom texture (e.g. from a
 # resource pack). Each ammo item represents one round.
