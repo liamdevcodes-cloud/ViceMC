@@ -1,0 +1,14 @@
+name: ViceLaw
+version: 1.0.0
+main: net.vicemc.modules.law.LawPlugin
+api-version: 1.21
+depend: [ViceCore]
+description: Bodycam evidence, arrests, lawyer review workflow and courts.
+commands:
+  law:
+  arrest:
+  release:
+  lawyer:
+  court:
+  lawbook:
+  bodycam:

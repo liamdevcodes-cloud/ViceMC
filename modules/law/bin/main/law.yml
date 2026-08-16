@@ -1,0 +1,28 @@
+# Law, lawyers and evidence. Police interactions are bodycam-recorded and
+# retained for 48 hours. Anyone under arrest or suspicion can request a
+# lawyer and is held in the waiting room until a lawyer reviews the footage.
+bodycam:
+  enabled: true
+  retention-hours: 48
+
+locations:
+  jail: "world,0,64,0"
+  waiting-room: "world,0,64,0"
+  court: "world,0,64,0"
+  release: "world,0,64,0"
+
+# State lawyers are paid by the government per case. Private lawyers set
+# their own fee with /lawyer price <amount>.
+state-lawyer-pay: 5000
+
+# The law book. Offenses define max fines and jail sentences referenced by
+# /lawbook, arrests and court rulings.
+lawbook:
+  murder: { name: "&4Murder", fine: 50000, days: 14 }
+  assault: { name: "&cAssault", fine: 15000, days: 3 }
+  theft: { name: "&6Theft", fine: 10000, days: 2 }
+  drugs: { name: "&2Drug possession", fine: 20000, days: 5 }
+  robbery: { name: "&6Robbery", fine: 30000, days: 7 }
+  bribery: { name: "&4Bribery", fine: 25000, days: 10 }
+  rmt: { name: "&4Real-money trading", fine: 0, days: 0 }
+  misconduct: { name: "&cPolice misconduct", fine: 5000, days: 0 }
