@@ -1,0 +1,17 @@
+name: ViceFarm
+version: 1.0.0
+main: net.vicemc.modules.farm.FarmPlugin
+api-version: 1.21
+depend: [ViceCore]
+description: Farming - regenerative crop regions, farming levels, owned farms with tax margins and a /farm inventory to sell crops.
+commands:
+  farm:
+    aliases: [farming]
+    description: Your farm inventory, crops and earnings.
+  farmadmin:
+    aliases: [fa]
+    description: Set up farm regions, the wand, ownership and margins.
+permissions:
+  vicemc.farm.admin:
+    description: Manage the farming system (wand, region creation, ownership, deletion).
+    default: op

@@ -1,0 +1,59 @@
+# Farming system. Admins mark out farm regions with the farm wand
+# (/farmadmin wand), and each region is bound to one crop type. Crops regrow
+# after being harvested, players earn farming XP and levels, and higher-value
+# crops are gated behind higher farm levels.
+#
+# Crops are the real planted block; breaking a fully grown crop inside a farm
+# region puts the harvested item into the player's /farm inventory (with its
+# farm provenance) instead of their normal inventory.
+crops:
+  WHEAT:
+    block: WHEAT
+    item: WHEAT
+    value: 5.0
+    xp: 5.0
+    level: 1
+    regen-seconds: 45
+  CARROTS:
+    block: CARROTS
+    item: CARROT
+    value: 8.0
+    xp: 8.0
+    level: 2
+    regen-seconds: 60
+  POTATOES:
+    block: POTATOES
+    item: POTATO
+    value: 12.0
+    xp: 12.0
+    level: 3
+    regen-seconds: 75
+  BEETROOTS:
+    block: BEETROOTS
+    item: BEETROOT
+    value: 18.0
+    xp: 18.0
+    level: 4
+    regen-seconds: 90
+  NETHER_WART:
+    block: NETHER_WART
+    item: NETHER_WART
+    value: 25.0
+    xp: 25.0
+    level: 5
+    regen-seconds: 120
+
+# The crop the farm wand creates new regions for. Change in-game with
+# /farmadmin crop <id> (or the admin GUI).
+wand:
+  crop: WHEAT
+
+# XP required to go from one farm level to the next = level * xp-per-level.
+levels:
+  xp-per-level: 100
+
+# Default and maximum share of the sale value a farm owner keeps from the
+# players farming on their land (1% - 10%). Owners set their own margin per
+# region with /farmadmin margin <id> <0.01-0.10>.
+default-margin: 0.02
+max-margin: 0.10
