@@ -1,0 +1,9 @@
+name: ViceBanking
+version: 1.0.0
+main: net.vicemc.modules.banking.BankingPlugin
+api-version: 1.21
+depend: [ViceCore]
+description: Player-driven loans, interest, repayment and garnishment.
+commands:
+  bank:
+    aliases: [banking, loan]

@@ -1,0 +1,8 @@
+# Banker-driven lending. Interest is chosen by the lender; repayment is
+# automatic and defaults escalate to garnishment of future deposits.
+default-interest-percent: 5.0
+min-term-days: 3
+max-term-days: 30
+default-term-days: 7
+garnishment-rate: 0.15
+missed-payments-before-default: 2
