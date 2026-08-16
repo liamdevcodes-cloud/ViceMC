@@ -1,0 +1,12 @@
+# Discord integration bridge. The core NotificationService forwards to the
+# configured webhook, and module events (elections, lawyer reviews, finance,
+# heists, government) are posted to their channel webhooks. Empty URLs disable
+# a channel.
+enabled: true
+webhooks:
+  elections: ""
+  lawyer: ""
+  finance: ""
+  heists: ""
+  government: ""
+  announcements: ""

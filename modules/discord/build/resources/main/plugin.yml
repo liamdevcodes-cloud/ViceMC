@@ -1,0 +1,6 @@
+name: ViceDiscord
+version: 1.0.0
+main: net.vicemc.modules.discord.DiscordPlugin
+api-version: 1.21
+depend: [ViceCore]
+description: Discord webhook bridge for elections, lawyer reviews and finance notifications.
