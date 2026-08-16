@@ -1,0 +1,9 @@
+name: ViceGangs
+version: 1.0.0
+main: net.vicemc.modules.gangs.GangsPlugin
+api-version: 1.21
+depend: [ViceCore]
+description: Gang territories, weekly elections and drug boosters.
+commands:
+  gang:
+  vote:
