@@ -27,6 +27,12 @@ public final class GunDefinition {
     public int pellets = 1;
     public double reloadSeconds = 1.5;
     public double spread = 3.0;
+    public double bulletVelocity = 2.5;
+    public String projectileMaterial = "";
+    public int projectileModelData;
+    public String projectileItemModel = "";
+    public String projectileMode = "SNOWBALL";
+    public double projectileScale = 1.0;
     /** Custom fire sound (e.g. "sounds:glock18" or "sounds:glock18|1.0|1.0"). Empty = gun type default. */
     public String sound = "";
     /** Custom reload sound. Empty = the global reload sound. */
@@ -36,6 +42,14 @@ public final class GunDefinition {
 
     public boolean thirdPersonPoseEnabled() {
         return thirdPersonPose != null ? thirdPersonPose : id.equalsIgnoreCase("ak-74") || id.equalsIgnoreCase("ak74");
+    }
+
+    public boolean arrowProjectileEnabled() {
+        return "ARROW".equalsIgnoreCase(projectileMode);
+    }
+
+    public double effectiveProjectileScale() {
+        return projectileScale > 0.0 ? projectileScale : 1.0;
     }
 
     public GunType gunType() {
@@ -80,6 +94,12 @@ public final class GunDefinition {
         copy.pellets = pellets;
         copy.reloadSeconds = reloadSeconds;
         copy.spread = spread;
+        copy.bulletVelocity = bulletVelocity;
+        copy.projectileMaterial = projectileMaterial;
+        copy.projectileModelData = projectileModelData;
+        copy.projectileItemModel = projectileItemModel;
+        copy.projectileMode = projectileMode;
+        copy.projectileScale = projectileScale;
         copy.sound = sound;
         copy.reloadSound = reloadSound;
         copy.thirdPersonPose = thirdPersonPose;

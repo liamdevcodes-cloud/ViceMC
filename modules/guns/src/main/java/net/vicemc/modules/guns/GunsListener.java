@@ -3,18 +3,25 @@ package net.vicemc.modules.guns;
 import net.vicemc.api.util.ItemBuilder;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
+import org.bukkit.entity.Display;
 import org.bukkit.entity.Damageable;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
+import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Snowball;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
+import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
@@ -24,6 +31,9 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
+import org.bukkit.util.Transformation;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 
@@ -48,8 +58,6 @@ public final class GunsListener implements Listener {
     public static final NamespacedKey PROJ_DAMAGE_KEY = NamespacedKey.fromString("vicemc:gun-damage");
     public static final NamespacedKey PROJ_SHOOTER_KEY = NamespacedKey.fromString("vicemc:gun-shooter");
 
-    private static final double SPEED = 2.5;
-
     private final GunsModule module;
     private final JavaPlugin plugin;
 
@@ -60,6 +68,7 @@ public final class GunsListener implements Listener {
     private final Map<UUID, PendingReload> reloads = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastNeedAmmoMessage = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastReloadMessage = new ConcurrentHashMap<>();
+    private final Map<UUID, ActiveProjectile> activeProjectiles = new ConcurrentHashMap<>();
 
     public GunsListener(GunsModule module) {
         this.module = module;
@@ -67,6 +76,25 @@ public final class GunsListener implements Listener {
     }
 
     private record PendingReload(GunDefinition def, String serial) {
+    }
+
+    private static final class ActiveProjectile {
+        private final UUID shooterId;
+        private final Projectile hitbox;
+        private final ItemDisplay display;
+        private final double maxDistance;
+        private Location lastLocation;
+        private double distanceTravelled;
+        private ScheduledTask timeoutTask;
+        private ScheduledTask followTask;
+
+        private ActiveProjectile(UUID shooterId, Projectile hitbox, ItemDisplay display, double maxDistance) {
+            this.shooterId = shooterId;
+            this.hitbox = hitbox;
+            this.display = display;
+            this.maxDistance = maxDistance;
+            this.lastLocation = hitbox.getLocation();
+        }
     }
 
     public void shutdown() {
@@ -79,6 +107,7 @@ public final class GunsListener implements Listener {
         aiming.clear();
         aimTasks.values().forEach(task -> cancelQuietly(task));
         aimTasks.clear();
+        activeProjectiles.keySet().forEach(this::cleanupProjectile);
     }
 
     // --- Shooting ---------------------------------------------------------
@@ -155,20 +184,54 @@ public final class GunsListener implements Listener {
         double pitch = eye.getPitch() + rand(-spread, spread);
         Vector dir = direction(yaw, pitch);
 
-        Snowball ball = player.launchProjectile(Snowball.class, dir.multiply(SPEED));
-        ball.setGravity(false);
-        ball.setShooter(player);
-        PersistentDataContainer pdc = ball.getPersistentDataContainer();
+        double velocity = Math.max(0.1, def.bulletVelocity);
+        Projectile hitbox;
+        if (def.arrowProjectileEnabled()) {
+            Arrow arrow = player.launchProjectile(Arrow.class, dir.multiply(velocity));
+            arrow.setGravity(true);
+            arrow.setPickupStatus(Arrow.PickupStatus.DISALLOWED);
+            arrow.setCritical(false);
+            arrow.setDamage(0.0);
+            arrow.setKnockbackStrength(0);
+            arrow.setPersistent(false);
+            hitbox = arrow;
+        } else {
+            Snowball ball = player.launchProjectile(Snowball.class, dir.multiply(velocity));
+            ball.setGravity(false);
+            ball.setItem(new ItemStack(Material.AIR));
+            hitbox = ball;
+        }
+        hitbox.setVisibleByDefault(false);
+        hitbox.setSilent(true);
+        hitbox.setShooter(player);
+        ItemDisplay display = spawnProjectileDisplay(hitbox, def);
+        debugProjectile("spawn", hitbox, display, dir, velocity, def);
+        PersistentDataContainer pdc = hitbox.getPersistentDataContainer();
         pdc.set(PROJ_GUN_KEY, PersistentDataType.STRING, "true");
         pdc.set(PROJ_DAMAGE_KEY, PersistentDataType.STRING, String.valueOf(def.damage));
         pdc.set(PROJ_SHOOTER_KEY, PersistentDataType.STRING, player.getUniqueId().toString());
 
-        long ticks = Math.max(5, (long) (def.range / SPEED));
-        ball.getScheduler().runDelayed(plugin, task -> {
-            if (!ball.isDead()) {
-                ball.remove();
-            }
-        }, null, ticks);
+        ActiveProjectile active = new ActiveProjectile(player.getUniqueId(), hitbox, display, def.range);
+        activeProjectiles.put(hitbox.getUniqueId(), active);
+        active.timeoutTask = hitbox.getScheduler().runDelayed(plugin,
+                task -> cleanupProjectile(hitbox.getUniqueId()), null, 20L * 30L);
+        if (display != null) {
+            active.followTask = display.getScheduler().runAtFixedRate(plugin, task -> {
+                if (hitbox.isDead() || !hitbox.isValid() || display.isDead() || !display.isValid()) {
+                    cleanupProjectile(hitbox.getUniqueId());
+                    return;
+                }
+                Location current = displayLocation(hitbox.getLocation());
+                active.distanceTravelled += active.lastLocation.distance(current);
+                active.lastLocation = current;
+                if (active.distanceTravelled >= active.maxDistance) {
+                    cleanupProjectile(hitbox.getUniqueId());
+                    return;
+                }
+                applyProjectileTransform(display, hitbox.getVelocity(), def.effectiveProjectileScale());
+                display.teleport(current);
+            }, null, 1L, 1L);
+        }
 
         eye.getWorld().spawnParticle(Particle.CRIT, eye.clone().add(dir.clone().multiply(0.8)),
                 4, 0.06, 0.06, 0.06, 0.02);
@@ -178,10 +241,8 @@ public final class GunsListener implements Listener {
 
     @EventHandler
     public void onProjectileHit(ProjectileHitEvent event) {
-        if (!(event.getEntity() instanceof Snowball ball)) {
-            return;
-        }
-        PersistentDataContainer pdc = ball.getPersistentDataContainer();
+        Projectile projectile = event.getEntity();
+        PersistentDataContainer pdc = projectile.getPersistentDataContainer();
         if (!"true".equals(pdc.get(PROJ_GUN_KEY, PersistentDataType.STRING))) {
             return;
         }
@@ -192,7 +253,7 @@ public final class GunsListener implements Listener {
         Entity hit = event.getHitEntity();
         if (hit != null) {
             if (shooter != null && hit.equals(shooter)) {
-                ball.remove();
+                cleanupProjectile(projectile.getUniqueId());
                 return;
             }
             if (hit instanceof Damageable damageable) {
@@ -202,20 +263,134 @@ public final class GunsListener implements Listener {
                     damageable.damage(damage);
                 }
             }
-            module.playHit(ball.getLocation());
+            module.playHit(projectile.getLocation());
             if (hit instanceof Player victim) {
                 victim.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, victim.getEyeLocation(),
                         6, 0.3, 0.3, 0.3, 0.02);
-                Vector knock = ball.getVelocity().normalize().multiply(0.3).setY(0.12);
+                Vector knock = projectile.getVelocity().normalize().multiply(0.3).setY(0.12);
                 victim.setVelocity(victim.getVelocity().add(knock));
             } else {
-                ball.getWorld().spawnParticle(Particle.FLAME, ball.getLocation(), 5, 0.05, 0.05, 0.05, 0.01);
+                projectile.getWorld().spawnParticle(Particle.FLAME, projectile.getLocation(), 5, 0.05, 0.05, 0.05, 0.01);
             }
         } else if (event.getHitBlock() != null) {
-            ball.getWorld().spawnParticle(Particle.FLAME, ball.getLocation(), 5, 0.05, 0.05, 0.05, 0.01);
-            ball.getWorld().playSound(ball.getLocation(), Sound.BLOCK_STONE_HIT, 0.4f, 0.6f);
+            projectile.getWorld().spawnParticle(Particle.FLAME, projectile.getLocation(), 5, 0.05, 0.05, 0.05, 0.01);
+            projectile.getWorld().playSound(projectile.getLocation(), Sound.BLOCK_STONE_HIT, 0.4f, 0.6f);
         }
-        ball.remove();
+        cleanupProjectile(projectile.getUniqueId());
+    }
+
+    @EventHandler
+    public void onProjectileDamage(EntityDamageByEntityEvent event) {
+        if (!(event.getDamager() instanceof Projectile projectile)) return;
+        if ("true".equals(projectile.getPersistentDataContainer()
+                .get(PROJ_GUN_KEY, PersistentDataType.STRING))) {
+            event.setCancelled(true);
+        }
+    }
+
+    private ItemDisplay spawnProjectileDisplay(Projectile hitbox, GunDefinition def) {
+        Material material;
+        if (def.projectileMaterial == null || def.projectileMaterial.isBlank()) {
+            material = def.arrowProjectileEnabled() ? Material.ARROW : Material.SNOWBALL;
+        } else {
+            try {
+                material = Material.valueOf(def.projectileMaterial);
+            } catch (IllegalArgumentException ex) {
+                material = def.arrowProjectileEnabled() ? Material.ARROW : Material.SNOWBALL;
+            }
+        }
+        ItemStack item = new ItemStack(material);
+        if (def.projectileModelData > 0) {
+            item.editMeta(meta -> meta.setCustomModelData(def.projectileModelData));
+        }
+        ItemModelSupport.apply(item, def.projectileItemModel);
+        ItemDisplay display = hitbox.getWorld().spawn(displayLocation(hitbox.getLocation()), ItemDisplay.class);
+        display.setItemStack(item);
+        display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
+        applyProjectileTransform(display, hitbox.getVelocity(), def.effectiveProjectileScale());
+        display.setBillboard(Display.Billboard.FIXED);
+        display.setInterpolationDuration(1);
+        display.setTeleportDuration(1);
+        display.setViewRange(64.0f);
+        display.setPersistent(false);
+        return display;
+    }
+
+    private Location displayLocation(Location hitboxLocation) {
+        Location location = hitboxLocation.clone();
+        location.setYaw(0.0f);
+        location.setPitch(0.0f);
+        return location;
+    }
+
+    private void applyProjectileTransform(ItemDisplay display, Vector velocity, double configuredScale) {
+        if (velocity.lengthSquared() <= 0.0001) return;
+        Vector3f direction = new Vector3f((float) velocity.getX(), (float) velocity.getY(), (float) velocity.getZ())
+                .normalize();
+        Vector3f up = Math.abs(direction.y) > 0.999f
+                ? new Vector3f(1.0f, 0.0f, 0.0f) : new Vector3f(0.0f, 1.0f, 0.0f);
+        Quaternionf rotation = new Quaternionf().lookAlong(direction, up).invert();
+        float scale = (float) Math.max(0.1, Math.min(5.0, configuredScale));
+        display.setTransformation(new Transformation(
+                new Vector3f(), rotation, new Vector3f(scale), new Quaternionf()));
+    }
+
+    private void debugProjectile(String phase, Projectile hitbox, ItemDisplay display,
+                                 Vector initialDirection, double velocity, GunDefinition def) {
+        if (!module.config().getBoolean("debug-projectiles", true)) return;
+        Location hitboxLocation = hitbox.getLocation();
+        String displayState = display == null ? "none" : "yaw=" + display.getLocation().getYaw()
+                + ",pitch=" + display.getLocation().getPitch();
+        module.context().logger().info("[ProjectileDebug] " + phase
+                + " gun=" + def.id
+                + " mode=" + def.projectileMode
+                + " velocity=" + velocity
+                + " dir=" + vectorText(initialDirection)
+                + " hitbox=" + vectorText(hitbox.getVelocity())
+                + " hitboxRot=" + hitboxLocation.getYaw() + "/" + hitboxLocation.getPitch()
+                + " display=" + displayState
+                + " material=" + def.projectileMaterial
+                + " modelData=" + def.projectileModelData);
+    }
+
+    private String vectorText(Vector vector) {
+        return String.format(java.util.Locale.ROOT, "(%.3f,%.3f,%.3f)",
+                vector.getX(), vector.getY(), vector.getZ());
+    }
+
+    private void cleanupProjectile(UUID projectileId) {
+        ActiveProjectile active = activeProjectiles.remove(projectileId);
+        if (active == null) return;
+        cancelQuietly(active.timeoutTask);
+        cancelQuietly(active.followTask);
+        if (!active.hitbox.isDead()) active.hitbox.remove();
+        if (active.display != null && !active.display.isDead()) active.display.remove();
+    }
+
+    @EventHandler
+    public void onChunkUnload(ChunkUnloadEvent event) {
+        UUID worldId = event.getWorld().getUID();
+        int chunkX = event.getChunk().getX();
+        int chunkZ = event.getChunk().getZ();
+        activeProjectiles.entrySet().stream()
+                .filter(entry -> {
+                    Location location = entry.getValue().hitbox.getLocation();
+                    return location.getWorld() != null
+                            && location.getWorld().getUID().equals(worldId)
+                            && location.getBlockX() >> 4 == chunkX
+                            && location.getBlockZ() >> 4 == chunkZ;
+                })
+                .map(Map.Entry::getKey)
+                .toList()
+                .forEach(this::cleanupProjectile);
+    }
+
+    private void cleanupProjectilesByShooter(UUID shooterId) {
+        activeProjectiles.entrySet().stream()
+                .filter(entry -> entry.getValue().shooterId.equals(shooterId))
+                .map(Map.Entry::getKey)
+                .toList()
+                .forEach(this::cleanupProjectile);
     }
 
     // --- Aiming -----------------------------------------------------------
@@ -427,6 +602,13 @@ public final class GunsListener implements Listener {
             cancelQuietly(task);
             FovZoom.reset(player);
         }
+        nextFire.remove(uuid);
+        reloads.remove(uuid);
+        ScheduledTask reloadTask = reloadTasks.remove(uuid);
+        if (reloadTask != null) cancelQuietly(reloadTask);
+        lastNeedAmmoMessage.remove(uuid);
+        lastReloadMessage.remove(uuid);
+        cleanupProjectilesByShooter(uuid);
     }
 
     @EventHandler
@@ -445,12 +627,14 @@ public final class GunsListener implements Listener {
         }
         lastNeedAmmoMessage.remove(uuid);
         lastReloadMessage.remove(uuid);
+        cleanupProjectilesByShooter(uuid);
         module.thirdPersonGunPose().set(event.getPlayer(), false);
     }
 
     // --- Helpers ----------------------------------------------------------
 
     private static void cancelQuietly(ScheduledTask task) {
+        if (task == null) return;
         try {
             task.cancel();
         } catch (IllegalStateException ignored) {

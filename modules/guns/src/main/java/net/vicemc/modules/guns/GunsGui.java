@@ -196,6 +196,19 @@ public final class GunsGui {
                 "&7Click to toggle."), (p, c) -> {
                     draft.thirdPersonPose = !draft.thirdPersonPoseEnabled();
                     ctx.notifications().msg(p, "&aThird-person pose " + (draft.thirdPersonPose ? "enabled" : "disabled") + "&a.");
+                     openEdit(p);
+                 });
+        builder.item(GuiKit.ACTION_4, GuiKit.icon(projectileIcon(draft), "&6Projectile item",
+                "&7Current: &f" + projectileName(draft),
+                "&7Hold an item and click to set it."), (p, c) -> setProjectile(p));
+        builder.item(GuiKit.ACTION_5, GuiKit.icon(draft.arrowProjectileEnabled() ? Material.ARROW : Material.SNOWBALL,
+                "&6Projectile mode",
+                "&7Current: &f" + (draft.arrowProjectileEnabled() ? "Arrow" : "Snowball"),
+                "&7Arrow uses normal gravity.",
+                "&7Click to toggle."), (p, c) -> {
+                    draft.projectileMode = draft.arrowProjectileEnabled() ? "SNOWBALL" : "ARROW";
+                    ctx.notifications().msg(p, "&aProjectile mode set to &f"
+                            + (draft.arrowProjectileEnabled() ? "Arrow" : "Snowball") + "&a.");
                     openEdit(p);
                 });
 
@@ -209,9 +222,48 @@ public final class GunsGui {
         addStat(builder, player, 7, Material.SNOWBALL, "&fPellets", "&7" + draft.pellets + " per shot", "pellets");
         addStat(builder, player, 8, Material.CLOCK, "&fReload", "&7" + draft.reloadSeconds + "s", "reload");
         addStat(builder, player, 9, Material.ARROW, "&fSpread", "&7" + draft.spread + " deg", "spread");
+        addStat(builder, player, 10, Material.FEATHER, "&fBullet velocity",
+                "&7" + draft.bulletVelocity + " blocks/tick", "velocity");
         addSoundStat(builder, draft, false);
         addSoundStat(builder, draft, true);
+        builder.item(GuiKit.GRID_FIRST + 13, GuiKit.icon(Material.SLIME_BALL, "&fProjectile size",
+                "&7Current: &f" + formatScale(draft.effectiveProjectileScale()) + "x",
+                "&7Click for size controls."), (p, c) -> openProjectileSize(p));
         builder.open(player);
+    }
+
+    private void openProjectileSize(Player player) {
+        GunDefinition draft = drafts.get(player.getUniqueId());
+        if (draft == null) {
+            openAdmin(player);
+            return;
+        }
+        var builder = ctx.gui().builder(GuiKit.title("&fProjectile size"), 6);
+        GuiKit.frame(builder);
+        builder.item(0, GuiKit.back("the gun"), (p, c) -> openEdit(p));
+        builder.item(GuiKit.STATUS, GuiKit.icon(Material.SLIME_BALL, "&6Projectile size",
+                "&7Current: &f" + formatScale(draft.effectiveProjectileScale()) + "x"), GuiKit.NONE);
+        builder.item(GuiKit.ACTION_2, GuiKit.icon(Material.RED_DYE, "&cSmaller",
+                "&7Decrease by 0.1x."), (p, c) -> {
+                    draft.projectileScale = Math.max(0.1, draft.effectiveProjectileScale() - 0.1);
+                    openProjectileSize(p);
+                });
+        builder.item(GuiKit.ACTION_3, GuiKit.icon(Material.WHITE_DYE, "&fReset",
+                "&7Reset to 1.0x."), (p, c) -> {
+                    draft.projectileScale = 1.0;
+                    openProjectileSize(p);
+                });
+        builder.item(GuiKit.ACTION_4, GuiKit.icon(Material.LIME_DYE, "&aLarger",
+                "&7Increase by 0.1x."), (p, c) -> {
+                    draft.projectileScale = Math.min(5.0, draft.effectiveProjectileScale() + 0.1);
+                    openProjectileSize(p);
+                });
+        builder.item(GuiKit.CLOSE, GuiKit.close(), (p, c) -> p.closeInventory());
+        builder.open(player);
+    }
+
+    private String formatScale(double scale) {
+        return String.format(java.util.Locale.ROOT, "%.1f", scale);
     }
 
     private void addStat(GUIService.GuiBuilder builder, Player player, int index, Material material,
@@ -224,7 +276,7 @@ public final class GunsGui {
     private void addSoundStat(GUIService.GuiBuilder builder, GunDefinition draft, boolean reload) {
         String value = reload ? draft.reloadSound : draft.sound;
         String sound = value == null || value.isBlank() ? "default" : value;
-        int slot = GuiKit.GRID_FIRST + (reload ? 11 : 10);
+        int slot = GuiKit.GRID_FIRST + (reload ? 12 : 11);
         String label = reload ? "&6Reload sound" : "&6Fire sound";
         builder.item(slot, GuiKit.icon(Material.NOTE_BLOCK, label,
                         "&7Current: &f" + sound, "&7Click to choose a custom .ogg sound."),
@@ -294,6 +346,41 @@ public final class GunsGui {
         openEdit(player);
     }
 
+    private void setProjectile(Player player) {
+        GunDefinition draft = drafts.get(player.getUniqueId());
+        if (draft == null) {
+            openAdmin(player);
+            return;
+        }
+        ItemStack held = player.getInventory().getItemInMainHand();
+        if (held == null || held.getType().isAir()) {
+            ctx.notifications().warn(player, "&cHold the item you want as the projectile, then click again.");
+            openEdit(player);
+            return;
+        }
+        draft.projectileMaterial = held.getType().name();
+        var heldMeta = held.getItemMeta();
+        draft.projectileModelData = heldMeta != null && heldMeta.hasCustomModelData()
+                ? heldMeta.getCustomModelData() : 0;
+        draft.projectileItemModel = ItemModelSupport.read(held);
+        ctx.notifications().msg(player, "&aProjectile item set to &f" + projectileName(draft) + "&a.");
+        openEdit(player);
+    }
+
+    private Material projectileIcon(GunDefinition def) {
+        try {
+            return def.projectileMaterial == null || def.projectileMaterial.isBlank()
+                    ? Material.SNOWBALL : Material.valueOf(def.projectileMaterial);
+        } catch (IllegalArgumentException ex) {
+            return Material.SNOWBALL;
+        }
+    }
+
+    private String projectileName(GunDefinition def) {
+        return def.projectileMaterial == null || def.projectileMaterial.isBlank()
+                ? "Snowball (default)" : def.projectileMaterial;
+    }
+
     private void publish(Player player) {
         GunDefinition draft = drafts.get(player.getUniqueId());
         if (draft == null) {
@@ -321,6 +408,8 @@ public final class GunsGui {
         d.pellets = Math.max(1, Math.min(20, d.pellets));
         d.reloadSeconds = Math.max(0.5, Math.min(10, d.reloadSeconds));
         d.spread = Math.max(0, Math.min(30, d.spread));
+        d.bulletVelocity = Math.max(0.1, Math.min(20, d.bulletVelocity));
+        d.projectileScale = Math.max(0.1, Math.min(5.0, d.effectiveProjectileScale()));
     }
 
     private void askStat(Player player, String field) {
@@ -349,6 +438,9 @@ public final class GunsGui {
                     "&6Reload seconds (0.5-10). Current: &f" + draft.reloadSeconds + "&6.", 0.5, 10, false);
             case "spread" -> askNumber(player, field,
                     "&6Spread in degrees (0-30). Current: &f" + draft.spread + "&6.", 0, 30, false);
+            case "velocity" -> askNumber(player, field,
+                    "&6Bullet velocity (0.1-20 blocks/tick). Current: &f"
+                            + draft.bulletVelocity + "&6.", 0.1, 20, false);
             default -> openEdit(player);
         }
     }
@@ -404,6 +496,7 @@ public final class GunsGui {
                 case "pellets" -> draft.pellets = (int) value;
                 case "reload" -> draft.reloadSeconds = value;
                 case "spread" -> draft.spread = value;
+                case "velocity" -> draft.bulletVelocity = value;
                 default -> {
                 }
             }
