@@ -1,0 +1,9 @@
+name: ViceRegions
+version: 1.0.0
+main: net.vicemc.modules.regions.RegionsPlugin
+api-version: 1.21
+depend: [ViceCore]
+description: Custom polygon regions with flags and safe/danger/neutral zone indicators.
+commands:
+  region:
+    aliases: [rg]

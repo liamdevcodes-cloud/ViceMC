@@ -1,0 +1,16 @@
+wand:
+  material: GOLDEN_AXE
+  model-data: 520
+  name: "&b&lRegion Wand"
+  lore:
+    - "&7Left-click blocks to add polygon vertices."
+    - "&7Right-click a block to close the selection."
+    - "&7Sneak + left-click air to clear the selection."
+indicator:
+  enabled: true
+  interval-ticks: 20
+  on-enter: true
+commands:
+  allowlist:
+    - region
+    - rg
