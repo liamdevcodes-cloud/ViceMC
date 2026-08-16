@@ -1,0 +1,20 @@
+name: ViceProperties
+version: 2.2.0
+main: net.vicemc.modules.properties.PropertiesPlugin
+api-version: 1.21
+depend: [ViceCore, ViceBusiness]
+description: Real estate - marked-out plots, serial numbers, ownership limits, permits, renting and resale.
+commands:
+  plot:
+    aliases: [properties]
+    description: Your plots, the market and your real estate.
+  plotadmin:
+    aliases: [pa]
+    description: Administer plots, the wand, values and permits.
+  plotinfo:
+    aliases: [pi]
+    description: Details of the plot you are in, or a serial.
+permissions:
+  vicemc.properties.admin:
+    description: Manage the real estate system (wand, plot creation, values, permits, deletion).
+    default: op

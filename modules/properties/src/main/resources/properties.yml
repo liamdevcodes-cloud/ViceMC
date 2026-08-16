@@ -1,0 +1,52 @@
+# Real estate system. Admins mark out plots with the wand (get it with
+# /plotadmin wand), each plot gets an automatic serial number (001AA, 002AA,
+# ... 099AA, 001AB, ...) and the admin-set default value. Players buy plots,
+# then furnish them; they can only ever modify blocks they placed themselves.
+# Business plot types (farm, mine, shop, food company, factory, dealership,
+# jewelry store, bank) require the matching government license before they can
+# be bought.
+#
+# Ownership limits per player (without a permit). A real estate permit
+# (granted via /plotadmin permit <player> on, university stand-in) raises
+# the limits to permit-limits and allows selling a house WITH its interior.
+limits:
+  house: 1
+  apartment: 2
+  farm: 1
+  mine: 1
+  shop: 1
+  food_company: 1
+  factory: 1
+  dealership: 1
+  jewelry_store: 1
+  bank: 1
+
+# Limits once a player holds a real estate permit.
+permit-limits:
+  house: 2
+  apartment: 4
+  farm: 2
+  mine: 2
+  shop: 2
+  food_company: 2
+  factory: 2
+  dealership: 2
+  jewelry_store: 2
+  bank: 2
+
+# The default plot type the wand creates, and the value each new plot gets.
+# Change the default value in-game with /plotadmin value (or the admin GUI).
+wand:
+  type: HOUSE
+  value: 100000
+
+# Percentage of the plot value paid back to the owner when they sell the plot
+# back to the server (empty, no interior).
+resale-percent: 0.6
+
+# When a plot is sold/cleared: whether the contents of containers inside it
+# are dropped on the ground (true) instead of being silently deleted.
+drop-items-on-sell: true
+
+# Seconds between checks that evict expired tenants.
+tick-seconds: 60
