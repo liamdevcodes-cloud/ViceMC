@@ -1,0 +1,60 @@
+# ViceCore region registry.
+#
+# Regions are axis-aligned cuboids referenced by tag from the module configs
+# (blooddiamond.yml, heists.yml, gangs.yml). A feature only activates inside
+# a matching region, so define every tag your server uses or that feature
+# will silently stay dormant.
+#
+# Format:
+#   regions:
+#     <unique-id>:
+#       bounds: "<world>:<minX>,<minY>,<minZ>:<maxX>,<maxY>,<maxZ>"
+#       tags:
+#         - <tag>
+#
+# Tip: stand in two opposite corners and note the block coordinates (F3).
+# min/max are normalized, so the corners may be given in any order.
+# This file is rewritten on every /region admin change, so keep edits here.
+
+regions:
+
+  # Gang territories (gangs.yml -> gangs.<id>.region-tag)
+  # gang-east:
+  #   bounds: "world:-200,64,-200:-100,80,-100"
+  #   tags:
+  #     - "gang:east"
+  # gang-west:
+  #   bounds: "world:100,64,-200:200,80,-100"
+  #   tags:
+  #     - "gang:west"
+  # gang-south:
+  #   bounds: "world:-200,64,100:-100,80,200"
+  #   tags:
+  #     - "gang:south"
+
+  # Heist sites (heists.yml -> sites.<id>.region-tag)
+  # heist-bank:
+  #   bounds: "world:0,64,0:50,80,50"
+  #   tags:
+  #     - "heist:bank"
+  # heist-jewelry:
+  #   bounds: "world:-50,64,-50:0,80,0"
+  #   tags:
+  #     - "heist:jewelry"
+  # heist-casino:
+  #   bounds: "world:60,64,60:120,80,120"
+  #   tags:
+  #     - "heist:casino"
+
+  # Post-heist extraction island (heists.yml -> island-region)
+  # heist-island:
+  #   bounds: "world:0,64,450:100,90,550"
+  #   tags:
+  #     - "heist:island"
+
+  # Blood Diamond Mine (blooddiamond.yml -> mine.region-tag).
+  # Full item loss on death and shard mining apply ONLY inside this zone.
+  # blooddiamond-mine:
+  #   bounds: "world:-1000,32,-1000:-800,80,-800"
+  #   tags:
+  #     - "blooddiamond"
