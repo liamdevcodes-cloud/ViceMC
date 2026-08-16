@@ -1,0 +1,23 @@
+name: ViceCore
+version: 1.0.0
+main: net.vicemc.core.ViceCore
+api-version: 1.21
+description: ViceMC roleplay framework - module registry and shared services.
+authors: [ViceMC]
+website: https://github.com/vicemc
+commands:
+  vregion:
+    aliases: [region]
+    permission: vicemc.admin
+  glow:
+    permission: vicemc.glow
+  buildermode:
+    aliases: [bm, build]
+    permission: vicemc.buildermode.use
+permissions:
+  vicemc.buildermode.use:
+    description: Toggle builder mode to build on the protected map.
+    default: op
+  vicemc.buildermode.bypass:
+    description: Always able to build on the map, regardless of builder mode.
+    default: op
