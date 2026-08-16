@@ -1,0 +1,9 @@
+name: ViceBloodDiamond
+version: 1.0.0
+main: net.vicemc.modules.blooddiamond.BloodDiamondPlugin
+api-version: 1.21
+depend: [ViceCore]
+description: Blood Diamond Mine death rules, shard crafting and store-credit conversion.
+commands:
+  bd:
+    aliases: [blooddiamond]
