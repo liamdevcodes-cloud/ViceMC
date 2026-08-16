@@ -1,0 +1,13 @@
+name: ViceBusiness
+version: 1.0.0
+main: net.vicemc.modules.business.BusinessPlugin
+api-version: 1.21
+depend: [ViceCore]
+description: Player businesses, licenses, factories, farms, dealerships and government stock.
+commands:
+  business:
+    aliases: [biz]
+  factory:
+  farm:
+  shop:
+  dealer:
