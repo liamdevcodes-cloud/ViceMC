@@ -1,0 +1,28 @@
+name: ViceStaff
+version: 1.1.1
+main: net.vicemc.modules.staff.StaffPlugin
+api-version: 1.21
+depend: [ViceCore, ViceBusiness]
+description: Staff oversight - inspect every module, run guarded actions, moderate players, review the audit trail.
+commands:
+  staff:
+    aliases: [staffpanel]
+  sc:
+    aliases: [staffchat]
+    permission: vicemc.staff.staffchat
+permissions:
+  vicemc.staff.view:
+    description: View every module's raw data, economy and player details (read-only).
+    default: op
+  vicemc.staff.act:
+    description: Run guarded staff actions (teleports, kick/ban/mute/freeze/spectate/vanish, utilities). Every action is audited.
+    default: op
+  vicemc.staff.senior:
+    description: Run high-level staff actions (give/take money, business licenses). OP only. Every action is audited.
+    default: op
+  vicemc.staff.audit:
+    description: Read the staff audit log.
+    default: op
+  vicemc.staff.staffchat:
+    description: Send and receive staff chat.
+    default: op
