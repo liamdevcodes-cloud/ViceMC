@@ -1,0 +1,9 @@
+name: ViceHeists
+version: 1.0.0
+main: net.vicemc.modules.heists.HeistsPlugin
+api-version: 1.21
+depend: [ViceCore, ViceProperties]
+description: Mafia families, hostage heists, escape boats and island extraction.
+commands:
+  family:
+  heist:

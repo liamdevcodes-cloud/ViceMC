@@ -1,0 +1,60 @@
+# Mafia families and coordinated heists. Families pay a registration fee,
+# recruit members and organize bank-style heists with a hostage mechanic,
+# random coastal getaway boats and a private island extraction.
+registration-fee: 150000
+
+# Founding a family requires owning a property (bought via /property).
+family-requires-house: true
+
+heist:
+  max-active: 3
+  hostage-zone-radius: 12
+
+# Heist sites. Central locations pay more but attract stronger police
+# response (risk 1-3). Remote sites are easier to escape.
+sites:
+  bank:
+    name: "&6City Bank"
+    region-tag: "heist:bank"
+    payout: 75000
+    risk: 3
+    duration-seconds: 900
+  jewelry:
+    name: "&bDowntown Jewelers"
+    region-tag: "heist:jewelry"
+    payout: 40000
+    risk: 2
+    duration-seconds: 600
+  casino:
+    name: "&eRiverside Casino"
+    region-tag: "heist:casino"
+    payout: 20000
+    risk: 1
+    duration-seconds: 450
+
+# Hostage is spawned here when a heist starts. If police reach it, the
+# hostage escapes and the robbery collapses (lethal force authorized).
+hostage-spawn: "world,0,64,0"
+
+# Random coastal getaway boat spawns. Coordinates: world,x,y,z
+coastal:
+  - "world,0,63,100"
+  - "world,0,63,-100"
+  - "world,100,63,0"
+  - "world,-100,63,0"
+
+# Private island used as the post-heist extraction hub.
+island: "world,0,64,500"
+island-region: "heist:island"
+
+# Helicopter routes back into the world, chosen from the island.
+helicopter-routes:
+  north: "world,0,70,0"
+  east: "world,100,70,0"
+  south: "world,0,70,0"
+  west: "world,-100,70,0"
+
+# Helmets that hide a robber's identity. Escaped robbers wearing these
+# cannot be arrested afterwards (see law module).
+mask-materials:
+  - LEATHER_HELMET
