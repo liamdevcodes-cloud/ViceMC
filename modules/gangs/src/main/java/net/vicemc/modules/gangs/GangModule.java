@@ -218,7 +218,8 @@ public final class GangModule implements ViceModule, Listener {
                     + "  &e/gang admin addrewarditem <territory> <MATERIAL> [amount] &7- Add reward item\n"
                     + "  &e/gang admin clearrewarditems <territory> &7- Clear reward items\n"
                     + "  &e/gang admin togglewar &7- Toggle territory war\n"
-                    + "  &e/gang admin setgangregion <north|south> <regionTag> &7- Assign gang area\n"
+                    + "  &e/gang admin setgangregion <gangId> <regionTag> &7- Assign gang area\n"
+                    + "  &e  Example: /gang admin setgangregion north gangzone:north\n"
                     + "  &e/gang admin reload &7- Reload config");
         }
     }
@@ -387,9 +388,9 @@ public final class GangModule implements ViceModule, Listener {
     }
 
     private void adminSetGangRegion(CommandContext c) {
-        if (c.size() < 4) { c.usage("/gang admin setgangregion <north|south> <regionTag>"); return; }
+        if (c.size() < 4) { c.usage("/gang admin setgangregion <gangId> <regionTag>  Example: /gang admin setgangregion north gangzone:north"); return; }
         String gangId = c.arg(2).toLowerCase();
-        if (manager.gang(gangId) == null) { c.error("Invalid gang. Use: north, south"); return; }
+        if (manager.gang(gangId) == null) { c.error("Invalid gang ID '" + c.arg(2) + "'. Check gangs.yml for valid IDs."); return; }
         String regionTag = c.arg(3);
         if (manager.setGangRegion(gangId, regionTag)) {
             c.msg("&aSet &f" + manager.gang(gangId).name + " &aregion to &f" + regionTag);
