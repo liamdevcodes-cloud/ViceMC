@@ -390,11 +390,7 @@ public final class GangModule implements ViceModule, Listener {
     private void adminSetGangRegion(CommandContext c) {
         if (c.size() < 4) { c.usage("/gang admin setgangregion <gangId> <regionTag>  Example: /gang admin setgangregion north gangzone:north"); return; }
         String gangId = c.arg(2).toLowerCase();
-        if (manager.gang(gangId) == null) {
-            String loaded = manager.all().stream().map(g -> g.id).collect(java.util.stream.Collectors.joining(", "));
-            c.error("Invalid gang ID '" + c.arg(2) + "' (parsed as: '" + gangId + "'). Loaded gangs: [" + loaded + "]. Args count=" + c.size() + ", allArgs=[" + String.join(", ", c.args()) + "]");
-            return;
-        }
+        if (manager.gang(gangId) == null) { c.error("Invalid gang ID '" + c.arg(2) + "'. Check gangs.yml for valid IDs."); return; }
         String regionTag = c.arg(3);
         if (manager.setGangRegion(gangId, regionTag)) {
             c.msg("&aSet &f" + manager.gang(gangId).name + " &aregion to &f" + regionTag);

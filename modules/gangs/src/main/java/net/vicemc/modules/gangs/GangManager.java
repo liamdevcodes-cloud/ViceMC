@@ -45,15 +45,17 @@ public final class GangManager {
         if (section == null) return;
         for (String id : section.getKeys(false)) {
             if (!CANONICAL_IDS.contains(id)) continue;
+            ConfigurationSection gSection = section.getConfigurationSection(id);
+            if (gSection == null) continue;
             Gang gang = new Gang();
             gang.id = id;
-            gang.name = section.getString(id + ".name", id);
-            gang.regionTag = section.getString(id + ".region-tag", "gang:" + id);
-            gang.drugMaterial = section.getString(id + ".drug-material", "SUGAR");
-            gang.drugName = section.getString(id + ".drug-name", "Drugs");
-            gang.drugEffect = section.getString(id + ".drug-effect", "HASTE");
-            gang.drugAmplifier = section.getInt(id + ".drug-amplifier", 1);
-            gang.drugDurationSeconds = section.getInt(id + ".drug-duration-seconds", 60);
+            gang.name = gSection.getString("name", id);
+            gang.regionTag = gSection.getString("region-tag", "gang:" + id);
+            gang.drugMaterial = gSection.getString("drug-material", "SUGAR");
+            gang.drugName = gSection.getString("drug-name", "Drugs");
+            gang.drugEffect = gSection.getString("drug-effect", "HASTE");
+            gang.drugAmplifier = gSection.getInt("drug-amplifier", 1);
+            gang.drugDurationSeconds = gSection.getInt("drug-duration-seconds", 60);
             gangs.put(id, gang);
         }
     }
