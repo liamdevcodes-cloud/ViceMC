@@ -41,22 +41,38 @@ public final class GangManager {
     // ========================= CONFIG LOAD =========================
 
     private void loadConfig() {
-        ConfigurationSection section = ctx.yaml("gangs.yml").getSection("gangs");
-        if (section == null) return;
-        for (String id : section.getKeys(false)) {
-            if (!CANONICAL_IDS.contains(id)) continue;
-            ConfigurationSection gSection = section.getConfigurationSection(id);
-            if (gSection == null) continue;
-            Gang gang = new Gang();
-            gang.id = id;
-            gang.name = gSection.getString("name", id);
-            gang.regionTag = gSection.getString("region-tag", "gang:" + id);
-            gang.drugMaterial = gSection.getString("drug-material", "SUGAR");
-            gang.drugName = gSection.getString("drug-name", "Drugs");
-            gang.drugEffect = gSection.getString("drug-effect", "HASTE");
-            gang.drugAmplifier = gSection.getInt("drug-amplifier", 1);
-            gang.drugDurationSeconds = gSection.getInt("drug-duration-seconds", 60);
-            gangs.put(id, gang);
+        var cfg = ctx.yaml("gangs.yml");
+        ConfigurationSection section = cfg.getSection("gangs");
+        if (section != null) {
+            for (String id : section.getKeys(false)) {
+                ConfigurationSection gSection = section.getConfigurationSection(id);
+                if (gSection == null) continue;
+                Gang gang = new Gang();
+                gang.id = id;
+                gang.name = gSection.getString("name", id);
+                gang.regionTag = gSection.getString("region-tag", "gang:" + id);
+                gang.drugMaterial = gSection.getString("drug-material", "SUGAR");
+                gang.drugName = gSection.getString("drug-name", "Drugs");
+                gang.drugEffect = gSection.getString("drug-effect", "HASTE");
+                gang.drugAmplifier = gSection.getInt("drug-amplifier", 1);
+                gang.drugDurationSeconds = gSection.getInt("drug-duration-seconds", 60);
+                gangs.put(id, gang);
+            }
+        }
+        // Ensure canonical gangs always exist
+        for (String id : CANONICAL_IDS) {
+            if (!gangs.containsKey(id)) {
+                Gang gang = new Gang();
+                gang.id = id;
+                gang.name = id.substring(0, 1).toUpperCase() + id.substring(1) + " Side";
+                gang.regionTag = "gang:" + id;
+                gang.drugMaterial = "SUGAR";
+                gang.drugName = "Drugs";
+                gang.drugEffect = "HASTE";
+                gang.drugAmplifier = 1;
+                gang.drugDurationSeconds = 60;
+                gangs.put(id, gang);
+            }
         }
     }
 
