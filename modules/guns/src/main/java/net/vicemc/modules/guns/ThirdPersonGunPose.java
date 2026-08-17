@@ -12,7 +12,6 @@ import com.comphenix.protocol.wrappers.Pair;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -22,6 +21,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
 
 import java.util.List;
 import java.util.Set;
@@ -31,7 +31,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class ThirdPersonGunPose implements Listener {
     private final GunsModule module;
     private final Set<UUID> active = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<Integer, PoseSnapshot> presentations = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, Integer> entityIds = new ConcurrentHashMap<>();
     private ProtocolManager protocol;
+
+    private record PoseSnapshot(UUID playerId, ItemStack shown) {
+    }
 
     public ThirdPersonGunPose(GunsModule module) {
         this.module = module;
@@ -55,33 +60,46 @@ public final class ThirdPersonGunPose implements Listener {
     public void disable() {
         if (protocol != null) protocol.removePacketListeners(module.context().plugin());
         active.clear();
+        presentations.clear();
+        entityIds.clear();
     }
 
     public void set(Player player, boolean enabled) {
         boolean changed = enabled ? active.add(player.getUniqueId()) : active.remove(player.getUniqueId());
-        if (changed && protocol != null && player.isOnline()) {
-            if (enabled) {
-                broadcastEquipment(player, true);
-            } else Bukkit.getScheduler().runTask(module.context().plugin(), () -> {
-                if (player.isOnline()) broadcastEquipment(player, false);
-            });
+        if (protocol == null || !player.isOnline()) return;
+        if (enabled) {
+            cachePresentation(player);
+        } else if (changed) {
+            Integer entityId = entityIds.remove(player.getUniqueId());
+            if (entityId != null) presentations.remove(entityId);
         }
     }
 
     public void refresh(Player player) {
         if (protocol != null && player.isOnline() && active.contains(player.getUniqueId())) {
-            broadcastEquipment(player, true);
+            cachePresentation(player);
         }
     }
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        Bukkit.getScheduler().runTask(module.context().plugin(), () -> set(event.getPlayer(), isAk(event.getPlayer().getInventory().getItemInMainHand())));
+        Player player = event.getPlayer();
+        player.getScheduler().run(module.context().plugin(), task -> {
+            if (player.isOnline()) set(player, isAk(player.getInventory().getItemInMainHand()));
+        }, null);
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         set(event.getPlayer(), false);
+    }
+
+    @EventHandler
+    public void onRespawn(PlayerRespawnEvent event) {
+        Player player = event.getPlayer();
+        player.getScheduler().runDelayed(module.context().plugin(), task -> {
+            if (player.isOnline()) set(player, isAk(player.getInventory().getItemInMainHand()));
+        }, null, 1L);
     }
 
     private boolean isAk(ItemStack item) {
@@ -93,37 +111,30 @@ public final class ThirdPersonGunPose implements Listener {
     public boolean isPoseGun(ItemStack item) { return isAk(item); }
 
     private void rewrite(PacketEvent event) {
-        Entity entity;
-        try {
-            entity = event.getPacket().getEntityModifier(event).read(0);
-        } catch (RuntimeException ignored) {
-            return;
-        }
-        if (!(entity instanceof Player target) || event.getPlayer().getUniqueId().equals(target.getUniqueId())
-                || !active.contains(target.getUniqueId()) || !isPoseGun(target.getInventory().getItemInMainHand())) return;
+        Integer entityId = event.getPacket().getIntegers().readSafely(0);
+        if (entityId == null) return;
+        PoseSnapshot presentation = presentations.get(entityId);
+        if (presentation == null || event.getPlayer().getUniqueId().equals(presentation.playerId())) return;
 
         List<Pair<EnumWrappers.ItemSlot, ItemStack>> pairs = event.getPacket().getSlotStackPairLists().read(0);
         if (pairs == null) return;
         for (int i = 0; i < pairs.size(); i++) {
             Pair<EnumWrappers.ItemSlot, ItemStack> pair = pairs.get(i);
             if (pair.getFirst() != EnumWrappers.ItemSlot.MAINHAND || !module.guns().isGun(pair.getSecond())) continue;
-                pairs.set(i, new Pair<>(EnumWrappers.ItemSlot.MAINHAND, fakeCrossbow(pair.getSecond())));
+            pairs.set(i, new Pair<>(EnumWrappers.ItemSlot.MAINHAND, presentation.shown().clone()));
         }
         event.getPacket().getSlotStackPairLists().write(0, pairs);
     }
 
-    private void broadcastEquipment(Player target, boolean fake) {
+    private void cachePresentation(Player target) {
         ItemStack item = target.getInventory().getItemInMainHand();
-        if (item == null) item = new ItemStack(Material.AIR);
-        if (fake && !isPoseGun(item)) return;
-        ItemStack shown = fake ? fakeCrossbow(item) : item.clone();
-        PacketContainer packet = protocol.createPacket(PacketType.Play.Server.ENTITY_EQUIPMENT);
-        packet.getIntegers().write(0, target.getEntityId());
-        packet.getSlotStackPairLists().write(0, List.of(new Pair<>(EnumWrappers.ItemSlot.MAINHAND, shown)));
-        for (Player viewer : Bukkit.getOnlinePlayers()) {
-            if (viewer.getUniqueId().equals(target.getUniqueId())) continue;
-            protocol.sendServerPacket(viewer, packet);
+        if (!isPoseGun(item)) {
+            set(target, false);
+            return;
         }
+        int entityId = target.getEntityId();
+        entityIds.put(target.getUniqueId(), entityId);
+        presentations.put(entityId, new PoseSnapshot(target.getUniqueId(), fakeCrossbow(item)));
     }
 
     private ItemStack fakeCrossbow(ItemStack item) {

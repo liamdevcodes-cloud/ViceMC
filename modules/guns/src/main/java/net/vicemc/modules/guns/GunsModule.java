@@ -14,6 +14,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Firearms with unique serial numbers, per-gun durability, magazine-based
@@ -29,6 +30,7 @@ public final class GunsModule implements ViceModule {
     private GunPrompts prompts;
     private GunsListener listener;
     private ThirdPersonGunPose thirdPersonGunPose;
+    private boolean folia;
 
     @Override
     public String id() {
@@ -48,6 +50,7 @@ public final class GunsModule implements ViceModule {
     @Override
     public void onEnable(ViceModuleContext context) {
         this.ctx = context;
+        this.folia = isFoliaServer();
         this.config = ctx.yaml("guns.yml");
         this.guns = new GunManager(ctx, config);
         this.gui = new GunsGui(this);
@@ -58,6 +61,7 @@ public final class GunsModule implements ViceModule {
         Bukkit.getPluginManager().registerEvents(listener, ctx.plugin());
         Bukkit.getPluginManager().registerEvents(thirdPersonGunPose, ctx.plugin());
         thirdPersonGunPose.enable(ctx.plugin());
+        if (folia) ctx.logger().info("Folia mode: cross-player gun delivery is disabled for region safety.");
         Bukkit.getPluginManager().registerEvents(prompts, ctx.plugin());
 
         ctx.commands().register(ctx.plugin(), CommandSpec.builder()
@@ -107,6 +111,15 @@ public final class GunsModule implements ViceModule {
 
     public ThirdPersonGunPose thirdPersonGunPose() { return thirdPersonGunPose; }
 
+    public boolean folia() {
+        return folia;
+    }
+
+    private boolean isFoliaServer() {
+        String implementation = Bukkit.getServer().getName().toLowerCase(Locale.ROOT);
+        return implementation.contains("folia") || implementation.contains("shreddedpaper");
+    }
+
     /** FOV magnification for a gun type while aiming, config-tunable. */
     public double aimZoom(GunType type) {
         return config.getDouble("aim." + type.name().toLowerCase(), type.aimZoom());
@@ -116,6 +129,10 @@ public final class GunsModule implements ViceModule {
 
     /** Spawns a fresh, fully-loaded gun with a brand new serial to the target. */
     public void giveGun(Player admin, Player target, GunDefinition def) {
+        if (folia && !admin.getUniqueId().equals(target.getUniqueId())) {
+            ctx.notifications().warn(admin, "&cCross-player gun delivery is unavailable in Folia mode.");
+            return;
+        }
         String serial = guns().nextSerial();
         GunInstance instance = new GunInstance(def, serial, def.durability, def.magSize);
         ItemStack item = guns().gunItem(instance);

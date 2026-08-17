@@ -550,11 +550,17 @@ public final class GunsGui {
                     module.giveGun(p, p, def);
                     openDefinition(p, def);
                 });
-        builder.item(GuiKit.ACTION_2, GuiKit.icon(Material.PLAYER_HEAD, "&6Give to player",
-                "&7Spawn a serialised gun",
-                "&7into another player's",
-                "&7inventory."),
-                (p, c) -> givePlayer(p, def, 1));
+        if (module.folia()) {
+            builder.item(GuiKit.ACTION_2, GuiKit.icon(Material.BARRIER, "&cGive to player",
+                    "&7Unavailable in Folia mode.",
+                    "&7Cross-region inventory edits are unsafe."), GuiKit.NONE);
+        } else {
+            builder.item(GuiKit.ACTION_2, GuiKit.icon(Material.PLAYER_HEAD, "&6Give to player",
+                    "&7Spawn a serialised gun",
+                    "&7into another player's",
+                    "&7inventory."),
+                    (p, c) -> givePlayer(p, def, 1));
+        }
         builder.item(GuiKit.ACTION_3, GuiKit.icon(Material.WRITABLE_BOOK, "&6Edit",
                 "&7Tune any stat or change",
                 "&7the skin."),

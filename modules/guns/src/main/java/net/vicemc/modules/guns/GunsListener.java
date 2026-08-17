@@ -21,7 +21,6 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
-import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
@@ -49,7 +48,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * Controls:
  *  - Right-click: shoot (auto-reloads when the magazine is empty)
- *  - Shift + right-click: toggle aim (tighter spread and a scoped FOV zoom)
+ *  - Shift + left-click: toggle aim (tighter spread and a scoped FOV zoom)
  *  - Q: reload
  */
 public final class GunsListener implements Listener {
@@ -86,7 +85,9 @@ public final class GunsListener implements Listener {
         private Location lastLocation;
         private double distanceTravelled;
         private ScheduledTask timeoutTask;
-        private ScheduledTask followTask;
+        private ScheduledTask physicsTask;
+        private ScheduledTask displayTask;
+        private volatile VisualState visualState;
 
         private ActiveProjectile(UUID shooterId, Projectile hitbox, ItemDisplay display, double maxDistance) {
             this.shooterId = shooterId;
@@ -95,6 +96,9 @@ public final class GunsListener implements Listener {
             this.maxDistance = maxDistance;
             this.lastLocation = hitbox.getLocation();
         }
+    }
+
+    private record VisualState(Location location, Vector velocity, double scale) {
     }
 
     public void shutdown() {
@@ -107,14 +111,17 @@ public final class GunsListener implements Listener {
         aiming.clear();
         aimTasks.values().forEach(task -> cancelQuietly(task));
         aimTasks.clear();
-        activeProjectiles.keySet().forEach(this::cleanupProjectile);
+        activeProjectiles.keySet().forEach(this::requestProjectileCleanup);
     }
 
     // --- Shooting ---------------------------------------------------------
 
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
-        if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+        Action action = event.getAction();
+        boolean rightClick = action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK;
+        boolean leftClick = action == Action.LEFT_CLICK_AIR || action == Action.LEFT_CLICK_BLOCK;
+        if (!rightClick && !leftClick) {
             return;
         }
         ItemStack item = event.getItem();
@@ -123,11 +130,11 @@ public final class GunsListener implements Listener {
         }
         Player player = event.getPlayer();
         event.setCancelled(true);
-        if (player.isSneaking()) {
+        if (leftClick && player.isSneaking()) {
             toggleAim(player);
             return;
         }
-        shoot(player, item);
+        if (rightClick) shoot(player, item);
     }
 
     private void shoot(Player player, ItemStack item) {
@@ -149,7 +156,6 @@ public final class GunsListener implements Listener {
             return;
         }
         if (reloadTasks.containsKey(uuid)) {
-            module.context().notifications().action(player, "&6Reloading...");
             return;
         }
         if (instance.ammoInMag() <= 0) {
@@ -198,38 +204,47 @@ public final class GunsListener implements Listener {
         } else {
             Snowball ball = player.launchProjectile(Snowball.class, dir.multiply(velocity));
             ball.setGravity(false);
-            ball.setItem(new ItemStack(Material.AIR));
             hitbox = ball;
         }
         hitbox.setVisibleByDefault(false);
         hitbox.setSilent(true);
         hitbox.setShooter(player);
-        ItemDisplay display = spawnProjectileDisplay(hitbox, def);
-        debugProjectile("spawn", hitbox, display, dir, velocity, def);
+        Location visualSpawn = projectileVisualLocation(hitbox);
+        final ItemDisplay display = spawnProjectileDisplay(hitbox, def, visualSpawn);
         PersistentDataContainer pdc = hitbox.getPersistentDataContainer();
         pdc.set(PROJ_GUN_KEY, PersistentDataType.STRING, "true");
         pdc.set(PROJ_DAMAGE_KEY, PersistentDataType.STRING, String.valueOf(def.damage));
         pdc.set(PROJ_SHOOTER_KEY, PersistentDataType.STRING, player.getUniqueId().toString());
 
         ActiveProjectile active = new ActiveProjectile(player.getUniqueId(), hitbox, display, def.range);
+        active.visualState = new VisualState(visualSpawn, hitbox.getVelocity().clone(), def.effectiveProjectileScale());
         activeProjectiles.put(hitbox.getUniqueId(), active);
         active.timeoutTask = hitbox.getScheduler().runDelayed(plugin,
-                task -> cleanupProjectile(hitbox.getUniqueId()), null, 20L * 30L);
+                task -> cleanupProjectileOnHitbox(hitbox.getUniqueId()), null, 20L * 30L);
         if (display != null) {
-            active.followTask = display.getScheduler().runAtFixedRate(plugin, task -> {
-                if (hitbox.isDead() || !hitbox.isValid() || display.isDead() || !display.isValid()) {
-                    cleanupProjectile(hitbox.getUniqueId());
+            active.physicsTask = hitbox.getScheduler().runAtFixedRate(plugin, task -> {
+                if (hitbox.isDead() || !hitbox.isValid()) {
+                    cleanupProjectileOnHitbox(hitbox.getUniqueId());
                     return;
                 }
-                Location current = displayLocation(hitbox.getLocation());
+                Location current = hitbox.getLocation();
                 active.distanceTravelled += active.lastLocation.distance(current);
                 active.lastLocation = current;
                 if (active.distanceTravelled >= active.maxDistance) {
-                    cleanupProjectile(hitbox.getUniqueId());
+                    cleanupProjectileOnHitbox(hitbox.getUniqueId());
                     return;
                 }
-                applyProjectileTransform(display, hitbox.getVelocity(), def.effectiveProjectileScale());
-                display.teleport(current);
+                active.visualState = visualState(hitbox, def.effectiveProjectileScale());
+            }, null, 1L, 1L);
+            active.displayTask = display.getScheduler().runAtFixedRate(plugin, task -> {
+                VisualState state = active.visualState;
+                if (state == null || activeProjectiles.get(hitbox.getUniqueId()) != active || display.isDead()) {
+                    if (!display.isDead()) display.remove();
+                    task.cancel();
+                    return;
+                }
+                applyProjectileTransform(display, state.velocity(), state.scale());
+                display.teleport(displayLocation(state.location()));
             }, null, 1L, 1L);
         }
 
@@ -248,12 +263,13 @@ public final class GunsListener implements Listener {
         }
         event.setCancelled(true);
         double damage = parseDouble(pdc.get(PROJ_DAMAGE_KEY, PersistentDataType.STRING), 0.0);
-        Player shooter = parseShooter(pdc.get(PROJ_SHOOTER_KEY, PersistentDataType.STRING));
+        UUID shooterId = parseUuid(pdc.get(PROJ_SHOOTER_KEY, PersistentDataType.STRING));
+        Player shooter = module.folia() ? null : parseShooter(shooterId);
 
         Entity hit = event.getHitEntity();
         if (hit != null) {
-            if (shooter != null && hit.equals(shooter)) {
-                cleanupProjectile(projectile.getUniqueId());
+            if (hit instanceof Player hitPlayer && shooterId != null && shooterId.equals(hitPlayer.getUniqueId())) {
+                cleanupProjectileOnHitbox(projectile.getUniqueId());
                 return;
             }
             if (hit instanceof Damageable damageable) {
@@ -276,7 +292,7 @@ public final class GunsListener implements Listener {
             projectile.getWorld().spawnParticle(Particle.FLAME, projectile.getLocation(), 5, 0.05, 0.05, 0.05, 0.01);
             projectile.getWorld().playSound(projectile.getLocation(), Sound.BLOCK_STONE_HIT, 0.4f, 0.6f);
         }
-        cleanupProjectile(projectile.getUniqueId());
+        cleanupProjectileOnHitbox(projectile.getUniqueId());
     }
 
     @EventHandler
@@ -288,7 +304,7 @@ public final class GunsListener implements Listener {
         }
     }
 
-    private ItemDisplay spawnProjectileDisplay(Projectile hitbox, GunDefinition def) {
+    private ItemDisplay spawnProjectileDisplay(Projectile hitbox, GunDefinition def, Location spawnLocation) {
         Material material;
         if (def.projectileMaterial == null || def.projectileMaterial.isBlank()) {
             material = def.arrowProjectileEnabled() ? Material.ARROW : Material.SNOWBALL;
@@ -304,7 +320,7 @@ public final class GunsListener implements Listener {
             item.editMeta(meta -> meta.setCustomModelData(def.projectileModelData));
         }
         ItemModelSupport.apply(item, def.projectileItemModel);
-        ItemDisplay display = hitbox.getWorld().spawn(displayLocation(hitbox.getLocation()), ItemDisplay.class);
+        ItemDisplay display = hitbox.getWorld().spawn(spawnLocation, ItemDisplay.class);
         display.setItemStack(item);
         display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
         applyProjectileTransform(display, hitbox.getVelocity(), def.effectiveProjectileScale());
@@ -323,6 +339,15 @@ public final class GunsListener implements Listener {
         return location;
     }
 
+    private Location projectileVisualLocation(Projectile hitbox) {
+        Location location = displayLocation(hitbox.getLocation());
+        Vector velocity = hitbox.getVelocity();
+        if (velocity.lengthSquared() > 0.0001) {
+            location.add(velocity.clone().normalize().multiply(0.8));
+        }
+        return location;
+    }
+
     private void applyProjectileTransform(ItemDisplay display, Vector velocity, double configuredScale) {
         if (velocity.lengthSquared() <= 0.0001) return;
         Vector3f direction = new Vector3f((float) velocity.getX(), (float) velocity.getY(), (float) velocity.getZ())
@@ -335,54 +360,27 @@ public final class GunsListener implements Listener {
                 new Vector3f(), rotation, new Vector3f(scale), new Quaternionf()));
     }
 
-    private void debugProjectile(String phase, Projectile hitbox, ItemDisplay display,
-                                 Vector initialDirection, double velocity, GunDefinition def) {
-        if (!module.config().getBoolean("debug-projectiles", true)) return;
-        Location hitboxLocation = hitbox.getLocation();
-        String displayState = display == null ? "none" : "yaw=" + display.getLocation().getYaw()
-                + ",pitch=" + display.getLocation().getPitch();
-        module.context().logger().info("[ProjectileDebug] " + phase
-                + " gun=" + def.id
-                + " mode=" + def.projectileMode
-                + " velocity=" + velocity
-                + " dir=" + vectorText(initialDirection)
-                + " hitbox=" + vectorText(hitbox.getVelocity())
-                + " hitboxRot=" + hitboxLocation.getYaw() + "/" + hitboxLocation.getPitch()
-                + " display=" + displayState
-                + " material=" + def.projectileMaterial
-                + " modelData=" + def.projectileModelData);
+    private VisualState visualState(Projectile hitbox, double scale) {
+        return new VisualState(hitbox.getLocation().clone(), hitbox.getVelocity().clone(), scale);
     }
 
-    private String vectorText(Vector vector) {
-        return String.format(java.util.Locale.ROOT, "(%.3f,%.3f,%.3f)",
-                vector.getX(), vector.getY(), vector.getZ());
+    private void requestProjectileCleanup(UUID projectileId) {
+        ActiveProjectile active = activeProjectiles.get(projectileId);
+        if (active == null) return;
+        active.hitbox.getScheduler().run(plugin, task -> cleanupProjectileOnHitbox(projectileId), null);
     }
 
-    private void cleanupProjectile(UUID projectileId) {
+    private void cleanupProjectileOnHitbox(UUID projectileId) {
         ActiveProjectile active = activeProjectiles.remove(projectileId);
         if (active == null) return;
         cancelQuietly(active.timeoutTask);
-        cancelQuietly(active.followTask);
+        cancelQuietly(active.physicsTask);
         if (!active.hitbox.isDead()) active.hitbox.remove();
-        if (active.display != null && !active.display.isDead()) active.display.remove();
-    }
-
-    @EventHandler
-    public void onChunkUnload(ChunkUnloadEvent event) {
-        UUID worldId = event.getWorld().getUID();
-        int chunkX = event.getChunk().getX();
-        int chunkZ = event.getChunk().getZ();
-        activeProjectiles.entrySet().stream()
-                .filter(entry -> {
-                    Location location = entry.getValue().hitbox.getLocation();
-                    return location.getWorld() != null
-                            && location.getWorld().getUID().equals(worldId)
-                            && location.getBlockX() >> 4 == chunkX
-                            && location.getBlockZ() >> 4 == chunkZ;
-                })
-                .map(Map.Entry::getKey)
-                .toList()
-                .forEach(this::cleanupProjectile);
+        if (active.display != null) {
+            active.display.getScheduler().run(plugin, task -> {
+                if (!active.display.isDead()) active.display.remove();
+            }, null);
+        }
     }
 
     private void cleanupProjectilesByShooter(UUID shooterId) {
@@ -390,7 +388,7 @@ public final class GunsListener implements Listener {
                 .filter(entry -> entry.getValue().shooterId.equals(shooterId))
                 .map(Map.Entry::getKey)
                 .toList()
-                .forEach(this::cleanupProjectile);
+                .forEach(this::requestProjectileCleanup);
     }
 
     // --- Aiming -----------------------------------------------------------
@@ -514,12 +512,12 @@ public final class GunsListener implements Listener {
         module.guns().updateGun(gun, def, instance.serial(), instance.durability(), loaded);
         boolean pose = module.thirdPersonGunPose().isPoseGun(gun);
         module.thirdPersonGunPose().set(player, pose);
-        Bukkit.getScheduler().runTask(module.context().plugin(), () -> {
+        player.getScheduler().run(module.context().plugin(), task -> {
             if (player.isOnline() && module.thirdPersonGunPose().isPoseGun(player.getInventory().getItemInMainHand())) {
                 module.thirdPersonGunPose().set(player, true);
                 module.thirdPersonGunPose().refresh(player);
             }
-        });
+        }, null);
         if (loaded < def.magSize) {
             module.playDry(player);
             module.context().notifications().action(player, "&cNot enough ammo - loaded &f" + loaded
@@ -576,12 +574,12 @@ public final class GunsListener implements Listener {
             if (instance != null && instance.defOk()) {
                 boolean pose = module.thirdPersonGunPose().isPoseGun(held);
                 module.thirdPersonGunPose().set(player, pose);
-                Bukkit.getScheduler().runTask(module.context().plugin(), () -> {
+                player.getScheduler().run(module.context().plugin(), task -> {
                     if (player.isOnline()) {
                         module.thirdPersonGunPose().set(player,
                                 module.thirdPersonGunPose().isPoseGun(player.getInventory().getItemInMainHand()));
                     }
-                });
+                }, null);
             }
             return;
         }
@@ -608,7 +606,7 @@ public final class GunsListener implements Listener {
         if (reloadTask != null) cancelQuietly(reloadTask);
         lastNeedAmmoMessage.remove(uuid);
         lastReloadMessage.remove(uuid);
-        cleanupProjectilesByShooter(uuid);
+        if (!module.folia()) cleanupProjectilesByShooter(uuid);
     }
 
     @EventHandler
@@ -627,7 +625,7 @@ public final class GunsListener implements Listener {
         }
         lastNeedAmmoMessage.remove(uuid);
         lastReloadMessage.remove(uuid);
-        cleanupProjectilesByShooter(uuid);
+        if (!module.folia()) cleanupProjectilesByShooter(uuid);
         module.thirdPersonGunPose().set(event.getPlayer(), false);
     }
 
@@ -662,14 +660,16 @@ public final class GunsListener implements Listener {
         }
     }
 
-    private Player parseShooter(String id) {
-        if (id == null) {
-            return null;
-        }
+    private UUID parseUuid(String id) {
+        if (id == null) return null;
         try {
-            return Bukkit.getPlayer(UUID.fromString(id));
+            return UUID.fromString(id);
         } catch (IllegalArgumentException ex) {
             return null;
         }
+    }
+
+    private Player parseShooter(UUID id) {
+        return id == null ? null : Bukkit.getPlayer(id);
     }
 }
