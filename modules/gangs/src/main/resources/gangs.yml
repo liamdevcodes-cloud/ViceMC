@@ -1,5 +1,12 @@
+# ============================================================
+# Vice Gangs v3.0 - Admin Configurable
+# ============================================================
+# Everything below can be changed by admins. Reload with /gang admin reload
+# after editing this file.
+
 # Two fixed factions: North Side and South Side.
-# Maximum member difference between gangs is 4 (balancing enforced on join).
+# Max member difference enforced on join: 4
+# Admins can bypass with /gang admin forcejoin
 gangs:
   north:
     name: "&bNorth Side"
@@ -18,49 +25,117 @@ gangs:
     drug-amplifier: 3
     drug-duration-seconds: 45
 
-# Biweekly leader election. Every 2 weeks on the specified day, members vote.
-# Kill stats during the term are shown next to candidates.
+# Biweekly leader election. Every 2 weeks, members vote via /vote.
+# Kill stats from the current term are shown next to candidates.
+# Set every-weeks to 1 for weekly elections.
 election:
   day: SATURDAY
   hour: 12
   window-hours: 24
   every-weeks: 2
 
-# Scheduled territory war window (server timezone: Europe/Berlin / CET+CEST).
-# During this window, capturing a territory rewards the gang's bank.
-# Admins can also toggle wars manually with /gang togglewar.
+# Territory war window. During this time, capturing a territory gives
+# the gang bank rewards (reward-money + reward-items).
+# Admins can toggle with /gang admin togglewar
 war:
   start-day: FRIDAY
   end-day: SUNDAY
   start-hour: 20
   end-hour: 23
+  timezone: "Europe/Berlin"
 
-# How many drugs a member may claim per week once their gang controls territory.
+# Weekly holding rewards. Each gang gets weekly-reward-money deposited
+# into their bank for every territory they control. Paid every ~24h.
+# Set to 0 to disable.
+
+# How many drugs a member may claim per week (once territory is held).
 weekly-drugs: 5
 
-# Contested zones both gangs fight over. During war events, capturing a zone
-# rewards money and weapons to the capturing gang's bank.
-# Each zone needs a region defined: /vregion pos1 + pos2 + create <id> <region-tag>
+# ============================================================
+# TERRITORIES - Fully Admin Configurable
+# ============================================================
+# Each territory needs a ViceRegion created with:
+#   /vregion pos1 + pos2 + create <id> <region-tag>
+#
+# Admins can also create territories at runtime:
+#   /gang admin createterritory <id> [name] [captureSeconds] [rewardMoney] [weeklyReward]
+#   /gang admin setregion <territoryId> <regionTag>
+#   /gang admin setcapturetime <territoryId> <seconds>
+#   /gang admin setrewardmoney <territoryId> <amount>
+#   /gang admin setweeklyreward <territoryId> <amount>
+#   /gang admin addrewarditem <territoryId> <MATERIAL> [amount]
+#   /gang admin clearrewarditems <territoryId>
+#   /gang admin deleteterritory <territoryId>
+
 territories:
   market-strip:
     name: "&eMarket Strip"
     region-tag: "gangzone:market"
     capture-seconds: 60
     reward-money: 500
-    reward-guns: 2
+    weekly-reward-money: 100
+    # Custom reward items given on capture (during war).
+    # You can add any Bukkit Material. Name uses & color codes.
+    reward-items:
+      explosive-charge:
+        material: GUNPOWDER
+        name: "&cExplosive Charge"
+        amount: 3
+        lore:
+          - "&7Black market explosive"
+          - "&7Captured during territory war"
+      ammo-pack:
+        material: ARROW
+        name: "&7Ammo Pack"
+        amount: 16
+        lore:
+          - "&7High-grade ammunition"
+          - "&7Looted from the streets"
+
   factory-zone:
     name: "&7Factory Zone"
     region-tag: "gangzone:factory"
     capture-seconds: 90
     reward-money: 750
-    reward-guns: 3
+    weekly-reward-money: 200
+    reward-items:
+      weapon-part:
+        material: IRON_INGOT
+        name: "&7Weapon Part"
+        amount: 4
+        lore:
+          - "&7Steel component for weapons"
+          - "&7Smuggled from the factory"
+      cash-stack:
+        material: PAPER
+        name: "&aCash Stack"
+        amount: 8
+        lore:
+          - "&7Forged currency"
+          - "&7From the factory floor"
+
   docks:
     name: "&9Docks"
     region-tag: "gangzone:docks"
     capture-seconds: 90
     reward-money: 1000
-    reward-guns: 4
+    weekly-reward-money: 300
+    reward-items:
+      contraband:
+        material: CHEST
+        name: "&6Contraband Shipment"
+        amount: 1
+        lore:
+          - "&7Seized from the harbor"
+          - "&7Contains random supplies"
+      key-card:
+        material: NAME_TAG
+        name: "&eAccess Keycard"
+        amount: 2
+        lore:
+          - "&7Unlocks restricted areas"
+          - "&7Salvaged from dock security"
 
-# How often the capture bar ticks (seconds).
+# Capture tick rate (seconds). How often the capture bar updates.
 capture:
   tick-seconds: 5

@@ -2,6 +2,7 @@ package net.vicemc.modules.gangs;
 
 import com.google.gson.reflect.TypeToken;
 import net.vicemc.api.ViceModuleContext;
+import net.vicemc.api.util.ItemBuilder;
 import net.vicemc.api.util.Json;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
@@ -16,22 +17,16 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * The two fixed gangs, memberships, elected leaders, lieutenants, kill stats,
- * votes, weekly drug claims, gang banks, and contested territories.
+ * Gang data, memberships, leaders, lieutenants, kills, bank, votes, territories.
+ * All runtime state; config-defined territory/gang data is reloaded on demand.
  */
 public final class GangManager {
 
     public static final Set<String> CANONICAL_IDS = Set.of("north", "south");
-    private static final int MAX_MEMBER_DIFF = 4;
-
-    private static final TypeToken<Map<String, String>> STRING_MAP = new TypeToken<>() {};
-    private static final TypeToken<Map<String, Map<String, String>>> VOTE_MAP = new TypeToken<>() {};
-    private static final TypeToken<Map<String, Integer>> INT_MAP = new TypeToken<>() {};
 
     private final ViceModuleContext ctx;
     private final Map<String, Gang> gangs = new LinkedHashMap<>();
     private final Map<String, UUID> leaders = new ConcurrentHashMap<>();
-    private final Map<String, Set<UUID>> lieutenants = new ConcurrentHashMap<>();
     private final Map<String, Map<UUID, UUID>> votes = new ConcurrentHashMap<>();
     private final Map<UUID, Long> drugClaims = new ConcurrentHashMap<>();
     private final Map<String, Territory> territories = new LinkedHashMap<>();
@@ -66,101 +61,66 @@ public final class GangManager {
     // ========================= PERSISTENCE LOAD =========================
 
     private void loadGangData() {
-        // Memberships
         ctx.storage().getModuleData("gangs", "members").ifPresent(json -> {
-            Map<String, String> map = Json.fromJson(json, STRING_MAP.getType());
-            if (map != null) {
-                map.forEach((k, v) -> {
-                    UUID uuid = UUID.fromString(k);
-                    String gangId = v;
-                    if (CANONICAL_IDS.contains(gangId)) {
-                        Gang gang = gangs.get(gangId);
-                        if (gang != null) {
-                            gang.memberUUIDs.add(uuid);
-                        }
-                    }
-                });
-            }
+            Map<String, String> map = Json.fromJson(json, new TypeToken<Map<String, String>>() {}.getType());
+            if (map != null) map.forEach((k, v) -> {
+                UUID uuid = UUID.fromString(k);
+                Gang g = gangs.get(v);
+                if (g != null) g.memberUUIDs.add(uuid);
+            });
         });
 
-        // Leaders
         ctx.storage().getModuleData("gangs", "leaders").ifPresent(json -> {
-            Map<String, String> map = Json.fromJson(json, STRING_MAP.getType());
-            if (map != null) {
-                map.forEach((gangId, uuidStr) -> {
-                    if (CANONICAL_IDS.contains(gangId)) {
-                        UUID uuid = UUID.fromString(uuidStr);
-                        leaders.put(gangId, uuid);
-                        Gang gang = gangs.get(gangId);
-                        if (gang != null) gang.leaderUUID = uuid;
-                    }
-                });
-            }
+            Map<String, String> map = Json.fromJson(json, new TypeToken<Map<String, String>>() {}.getType());
+            if (map != null) map.forEach((gangId, uuidStr) -> {
+                UUID uuid = UUID.fromString(uuidStr);
+                leaders.put(gangId, uuid);
+                Gang g = gangs.get(gangId);
+                if (g != null) g.leaderUUID = uuid;
+            });
         });
 
-        // Lieutenants
         ctx.storage().getModuleData("gangs", "lieutenants").ifPresent(json -> {
             Map<String, List<String>> map = Json.fromJson(json, new TypeToken<Map<String, List<String>>>() {}.getType());
-            if (map != null) {
-                map.forEach((gangId, uuidStrs) -> {
-                    if (!CANONICAL_IDS.contains(gangId)) return;
-                    Set<UUID> set = new java.util.HashSet<>();
-                    uuidStrs.forEach(s -> set.add(UUID.fromString(s)));
-                    lieutenants.put(gangId, set);
-                    Gang gang = gangs.get(gangId);
-                    if (gang != null) gang.lieutenantUUIDs.addAll(set);
-                });
-            }
+            if (map != null) map.forEach((gangId, uuidStrs) -> {
+                Gang g = gangs.get(gangId);
+                if (g == null) return;
+                uuidStrs.forEach(s -> g.lieutenantUUIDs.add(UUID.fromString(s)));
+            });
         });
 
-        // Drugs
         ctx.storage().getModuleData("gangs", "drugs").ifPresent(json -> {
-            Map<String, String> map = Json.fromJson(json, STRING_MAP.getType());
-            if (map != null) {
-                map.forEach((k, v) -> drugClaims.put(UUID.fromString(k), Long.parseLong(v)));
-            }
+            Map<String, String> map = Json.fromJson(json, new TypeToken<Map<String, String>>() {}.getType());
+            if (map != null) map.forEach((k, v) -> drugClaims.put(UUID.fromString(k), Long.parseLong(v)));
         });
 
-        // Kill stats - all-time
         ctx.storage().getModuleData("gangs", "killsAllTime").ifPresent(json -> {
             Map<String, Map<String, Integer>> map = Json.fromJson(json, new TypeToken<Map<String, Map<String, Integer>>>() {}.getType());
-            if (map != null) {
-                map.forEach((gangId, inner) -> {
-                    Gang gang = gangs.get(gangId);
-                    if (gang == null) return;
-                    inner.forEach((uuidStr, count) -> gang.killsAllTime.put(UUID.fromString(uuidStr), count));
-                });
-            }
+            if (map != null) map.forEach((gangId, inner) -> {
+                Gang g = gangs.get(gangId);
+                if (g != null) inner.forEach((s, c) -> g.killsAllTime.put(UUID.fromString(s), c));
+            });
         });
 
-        // Kill stats - current term
         ctx.storage().getModuleData("gangs", "killsCurrentTerm").ifPresent(json -> {
             Map<String, Map<String, Integer>> map = Json.fromJson(json, new TypeToken<Map<String, Map<String, Integer>>>() {}.getType());
-            if (map != null) {
-                map.forEach((gangId, inner) -> {
-                    Gang gang = gangs.get(gangId);
-                    if (gang == null) return;
-                    inner.forEach((uuidStr, count) -> gang.killsThisTerm.put(UUID.fromString(uuidStr), count));
-                });
-            }
+            if (map != null) map.forEach((gangId, inner) -> {
+                Gang g = gangs.get(gangId);
+                if (g != null) inner.forEach((s, c) -> g.killsThisTerm.put(UUID.fromString(s), c));
+            });
         });
 
-        // Gang banks
         ctx.storage().getModuleData("gangs", "bankBalance").ifPresent(json -> {
-            Map<String, String> map = Json.fromJson(json, STRING_MAP.getType());
-            if (map != null) {
-                map.forEach((gangId, val) -> {
-                    Gang gang = gangs.get(gangId);
-                    if (gang != null) gang.bankBalance = Double.parseDouble(val);
-                });
-            }
+            Map<String, String> map = Json.fromJson(json, new TypeToken<Map<String, String>>() {}.getType());
+            if (map != null) map.forEach((gangId, val) -> {
+                Gang g = gangs.get(gangId);
+                if (g != null) g.bankBalance = Double.parseDouble(val);
+            });
         });
 
-        // Votes
         ctx.storage().getModuleData("gangs", "votes").ifPresent(json -> {
-            Map<String, Map<String, String>> map = Json.fromJson(json, VOTE_MAP.getType());
-            if (map == null) return;
-            map.forEach((gang, votesByVoter) -> {
+            Map<String, Map<String, String>> map = Json.fromJson(json, new TypeToken<Map<String, Map<String, String>>>() {}.getType());
+            if (map != null) map.forEach((gang, votesByVoter) -> {
                 Map<UUID, UUID> inner = new ConcurrentHashMap<>();
                 votesByVoter.forEach((v, c) -> inner.put(UUID.fromString(v), UUID.fromString(c)));
                 votes.put(gang, inner);
@@ -169,60 +129,82 @@ public final class GangManager {
     }
 
     private void loadTerritories() {
-        ConfigurationSection section = ctx.yaml("gangs.yml").getSection("territories");
+        territories.clear();
+        var cfg = ctx.yaml("gangs.yml");
+        ConfigurationSection section = cfg.getSection("territories");
         if (section == null) return;
         for (String id : section.getKeys(false)) {
             Territory t = new Territory();
             t.id = id;
-            t.name = section.getString(id + ".name", id);
-            t.regionTag = section.getString(id + ".region-tag", "gangzone:" + id);
-            t.captureSeconds = Math.max(10, section.getInt(id + ".capture-seconds", 60));
-            t.rewardMoney = section.getDouble(id + ".reward-money", 0);
-            t.rewardGuns = section.getInt(id + ".reward-guns", 0);
+            t.name = cfg.getString("territories." + id + ".name", id);
+            t.regionTag = cfg.getString("territories." + id + ".region-tag", "gangzone:" + id);
+            t.captureSeconds = Math.max(10, cfg.getInt("territories." + id + ".capture-seconds", 60));
+            t.rewardMoney = cfg.getDouble("territories." + id + ".reward-money", 0);
+            t.weeklyRewardMoney = cfg.getDouble("territories." + id + ".weekly-reward-money", 0);
+
+            // Load configurable reward items
+            ConfigurationSection itemsSection = cfg.getSection("territories." + id + ".reward-items");
+            if (itemsSection != null) {
+                for (String key : itemsSection.getKeys(false)) {
+                    String path = "territories." + id + ".reward-items." + key;
+                    String matName = cfg.getString(path + ".material", "PAPER");
+                    String itemName = cfg.getString(path + ".name", key);
+                    int amount = cfg.getInt(path + ".amount", 1);
+                    List<String> lore = cfg.getStringList(path + ".lore");
+
+                    org.bukkit.Material mat = org.bukkit.Material.matchMaterial(matName);
+                    if (mat == null) mat = org.bukkit.Material.PAPER;
+                    ItemStack item = ItemBuilder.of(mat).name(itemName).lore(lore.toArray(new String[0])).build();
+                    t.rewardItems.add(item);
+                }
+            }
             territories.put(id, t);
         }
+
+        // Restore owners and progress from storage
         ctx.storage().getModuleData("gangs", "territories").ifPresent(json -> {
-            Map<String, String> map = Json.fromJson(json, STRING_MAP.getType());
-            if (map != null) {
-                map.forEach((id, owner) -> {
-                    Territory t = territories.get(id);
-                    if (t != null && gangs.containsKey(owner)) t.owner = owner;
-                });
-            }
+            Map<String, String> map = Json.fromJson(json, new TypeToken<Map<String, String>>() {}.getType());
+            if (map != null) map.forEach((id, owner) -> {
+                Territory t = territories.get(id);
+                if (t != null && gangs.containsKey(owner)) t.owner = owner;
+            });
         });
         ctx.storage().getModuleData("gangs", "territoryProgress").ifPresent(json -> {
-            Map<String, String> map = Json.fromJson(json, STRING_MAP.getType());
-            if (map != null) {
-                map.forEach((id, val) -> {
-                    Territory t = territories.get(id);
-                    if (t == null) return;
-                    try {
-                        String[] parts = val.split(";");
-                        t.progress = Integer.parseInt(parts[0]);
-                        if (parts.length > 1 && gangs.containsKey(parts[1])) t.progressOwner = parts[1];
-                    } catch (NumberFormatException ignored) {
-                    }
-                });
-            }
+            Map<String, String> map = Json.fromJson(json, new TypeToken<Map<String, String>>() {}.getType());
+            if (map != null) map.forEach((id, val) -> {
+                Territory t = territories.get(id);
+                if (t == null) return;
+                try {
+                    String[] parts = val.split(";");
+                    t.progress = Integer.parseInt(parts[0]);
+                    if (parts.length > 1 && gangs.containsKey(parts[1])) t.progressOwner = parts[1];
+                } catch (NumberFormatException ignored) {}
+            });
         });
+    }
+
+    // ========================= ADMIN: RELOAD =========================
+
+    public void reload() {
+        gangs.clear();
+        territories.clear();
+        leaders.clear();
+        votes.clear();
+        drugClaims.clear();
+        loadConfig();
+        loadGangData();
+        loadTerritories();
     }
 
     // ========================= GANGS =========================
 
-    public Gang gang(String id) {
-        return gangs.get(id);
-    }
-
-    public List<Gang> all() {
-        return new ArrayList<>(gangs.values());
-    }
+    public Gang gang(String id) { return gangs.get(id); }
+    public List<Gang> all() { return new ArrayList<>(gangs.values()); }
 
     // ========================= MEMBERSHIPS & BALANCING =========================
 
     public String gangOf(UUID uuid) {
-        for (Gang g : gangs.values()) {
-            if (g.memberUUIDs.contains(uuid)) return g.id;
-        }
+        for (Gang g : gangs.values()) if (g.memberUUIDs.contains(uuid)) return g.id;
         return null;
     }
 
@@ -248,27 +230,28 @@ public final class GangManager {
     public boolean canJoin(String gangId) {
         int myCount = memberCount(gangId);
         String otherId = "north".equals(gangId) ? "south" : "north";
-        int otherCount = memberCount(otherId);
-        return (otherCount - myCount) < MAX_MEMBER_DIFF;
+        return (memberCount(otherId) - myCount) < 4;
     }
 
-    public boolean join(UUID uuid, String gangId) {
-        Gang gang = gangs.get(gangId);
-        if (gang == null) return false;
-        if (!canJoin(gangId)) return false;
-        gang.memberUUIDs.add(uuid);
+    /** Join bypassing balance check (admin use). */
+    public boolean joinForce(UUID uuid, String gangId) {
+        Gang g = gangs.get(gangId);
+        if (g == null) return false;
+        g.memberUUIDs.add(uuid);
         saveMemberships();
         return true;
     }
 
+    public boolean join(UUID uuid, String gangId) {
+        if (!canJoin(gangId)) return false;
+        return joinForce(uuid, gangId);
+    }
+
     public void leave(UUID uuid) {
-        for (Gang gang : gangs.values()) {
-            if (gang.memberUUIDs.remove(uuid)) {
-                if (uuid.equals(gang.leaderUUID)) {
-                    gang.leaderUUID = null;
-                    leaders.remove(gang.id);
-                }
-                gang.lieutenantUUIDs.remove(uuid);
+        for (Gang g : gangs.values()) {
+            if (g.memberUUIDs.remove(uuid)) {
+                if (uuid.equals(g.leaderUUID)) { g.leaderUUID = null; leaders.remove(g.id); }
+                g.lieutenantUUIDs.remove(uuid);
                 saveAll();
                 return;
             }
@@ -304,24 +287,18 @@ public final class GangManager {
 
     public void demoteFromLieutenant(String gangId, UUID uuid) {
         Gang g = gangs.get(gangId);
-        if (g == null) return;
-        g.lieutenantUUIDs.remove(uuid);
+        if (g != null) g.lieutenantUUIDs.remove(uuid);
         saveLieutenants();
     }
 
-    public boolean isLeader(UUID uuid, String gangId) {
-        return uuid.equals(leaderOf(gangId));
-    }
-
+    public boolean isLeader(UUID uuid, String gangId) { return uuid.equals(leaderOf(gangId)); }
     public boolean isLieutenant(UUID uuid, String gangId) {
         Gang g = gangs.get(gangId);
         return g != null && g.lieutenantUUIDs.contains(uuid);
     }
-
     public boolean isHigherRank(UUID uuid, String gangId) {
         return isLeader(uuid, gangId) || isLieutenant(uuid, gangId);
     }
-
     public String rankName(UUID uuid, String gangId) {
         if (isLeader(uuid, gangId)) return "Leader";
         if (isLieutenant(uuid, gangId)) return "Lieutenant";
@@ -348,7 +325,6 @@ public final class GangManager {
         return g == null ? 0 : g.killsAllTime.getOrDefault(uuid, 0);
     }
 
-    /** Sort members of a gang by this-term kills descending. */
     public List<UUID> topKillers(String gangId) {
         Gang g = gangs.get(gangId);
         if (g == null) return List.of();
@@ -358,9 +334,7 @@ public final class GangManager {
     }
 
     public void resetTermKills() {
-        for (Gang g : gangs.values()) {
-            g.killsThisTerm.clear();
-        }
+        gangs.values().forEach(g -> g.killsThisTerm.clear());
         saveKills();
     }
 
@@ -387,7 +361,7 @@ public final class GangManager {
         return true;
     }
 
-    // ========================= ELECTIONS (VOTES) =========================
+    // ========================= ELECTIONS =========================
 
     public void vote(String gangId, UUID voter, UUID candidate) {
         votes.computeIfAbsent(gangId, k -> new ConcurrentHashMap<>()).put(voter, candidate);
@@ -402,24 +376,17 @@ public final class GangManager {
         return (int) votesFor(gangId).values().stream().filter(c -> c.equals(candidate)).count();
     }
 
-    public void clearVotes() {
-        votes.clear();
-        saveVotes();
-    }
+    public void clearVotes() { votes.clear(); saveVotes(); }
 
-    /** Highest vote count; on tie the incumbent wins. */
     public UUID countWinner(String gangId) {
         Map<UUID, Integer> tally = new HashMap<>();
         votesFor(gangId).values().forEach(c -> tally.merge(c, 1, Integer::sum));
         int best = tally.values().stream().mapToInt(Integer::intValue).max().orElse(0);
         if (best == 0) return null;
-        List<UUID> top = tally.entrySet().stream()
-                .filter(e -> e.getValue() == best)
-                .map(Map.Entry::getKey)
-                .toList();
+        List<UUID> top = tally.entrySet().stream().filter(e -> e.getValue() == best).map(Map.Entry::getKey).toList();
         if (top.size() == 1) return top.get(0);
-        UUID incumbent = leaderOf(gangId);
-        return (incumbent != null && top.contains(incumbent)) ? incumbent : top.get(0);
+        UUID inc = leaderOf(gangId);
+        return (inc != null && top.contains(inc)) ? inc : top.get(0);
     }
 
     // ========================= DRUGS =========================
@@ -438,21 +405,14 @@ public final class GangManager {
 
     // ========================= TERRITORIES =========================
 
-    public List<Territory> territories() {
-        return new ArrayList<>(territories.values());
-    }
-
-    public Territory territory(String id) {
-        return territories.get(id);
-    }
+    public List<Territory> territories() { return new ArrayList<>(territories.values()); }
+    public Territory territory(String id) { return territories.get(id); }
 
     public int territoriesControlled(String gangId) {
         return (int) territories.values().stream().filter(t -> gangId.equals(t.owner)).count();
     }
 
-    public boolean controlsAny(String gangId) {
-        return territoriesControlled(gangId) > 0;
-    }
+    public boolean controlsAny(String gangId) { return territoriesControlled(gangId) > 0; }
 
     public void captureTerritory(String id, String gangId) {
         Territory t = territories.get(id);
@@ -466,66 +426,183 @@ public final class GangManager {
     public void updateProgress(String id, int progress, String progressOwner) {
         Territory t = territories.get(id);
         if (t == null) return;
-        int p = Math.max(0, Math.min(100, progress));
-        String po = progressOwner == null ? "" : progressOwner;
-        if (t.progress == p && t.progressOwner.equals(po)) return;
-        t.progress = p;
-        t.progressOwner = po;
+        t.progress = Math.max(0, Math.min(100, progress));
+        t.progressOwner = progressOwner == null ? "" : progressOwner;
         saveTerritories();
+    }
+
+    // ========================= ADMIN: TERRITORY MANAGEMENT =========================
+
+    /** Create a new territory at runtime from an admin command. */
+    public Territory createTerritory(String id, String name, String regionTag,
+                                     int captureSeconds, double rewardMoney, double weeklyRewardMoney) {
+        if (territories.containsKey(id)) return null;
+        Territory t = Territory.create(id, name, regionTag, captureSeconds, rewardMoney, weeklyRewardMoney);
+        territories.put(id, t);
+        saveTerritories();
+        return t;
+    }
+
+    /** Change a territory's region tag at runtime. */
+    public boolean setTerritoryRegion(String id, String regionTag) {
+        Territory t = territories.get(id);
+        if (t == null) return false;
+        t.regionTag = regionTag;
+        saveTerritories();
+        return true;
+    }
+
+    /** Set a territory's capture seconds at runtime. */
+    public boolean setTerritoryCaptureTime(String id, int seconds) {
+        Territory t = territories.get(id);
+        if (t == null) return false;
+        t.captureSeconds = Math.max(10, seconds);
+        saveTerritories();
+        return true;
+    }
+
+    /** Set a territory's reward money at runtime. */
+    public boolean setTerritoryRewardMoney(String id, double money) {
+        Territory t = territories.get(id);
+        if (t == null) return false;
+        t.rewardMoney = money;
+        saveTerritories();
+        return true;
+    }
+
+    /** Set a territory's weekly holding reward at runtime. */
+    public boolean setTerritoryWeeklyReward(String id, double money) {
+        Territory t = territories.get(id);
+        if (t == null) return false;
+        t.weeklyRewardMoney = money;
+        saveTerritories();
+        return true;
+    }
+
+    /** Add a reward item to a territory. */
+    public boolean addTerritoryRewardItem(String id, ItemStack item) {
+        Territory t = territories.get(id);
+        if (t == null) return false;
+        t.rewardItems.add(item);
+        saveTerritoryRewardItems(t);
+        return true;
+    }
+
+    /** Clear all reward items from a territory. */
+    public boolean clearTerritoryRewardItems(String id) {
+        Territory t = territories.get(id);
+        if (t == null) return false;
+        t.rewardItems.clear();
+        saveTerritoryRewardItems(t);
+        return true;
+    }
+
+    private void saveTerritoryRewardItems(Territory t) {
+        // Persist as JSON list of item descriptions
+        List<String> itemDescs = new ArrayList<>();
+        for (ItemStack item : t.rewardItems) {
+            String mat = item.getType().name();
+            String name = item.hasItemMeta() && item.getItemMeta().hasDisplayName()
+                    ? net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().serialize(item.getItemMeta().displayName()) : mat;
+            int amount = item.getAmount();
+            itemDescs.add(mat + "|" + name + "|" + amount);
+        }
+        ctx.storage().setModuleData("gangs", "territoryItems:" + t.id, String.join(";;", itemDescs));
+    }
+
+    /** Delete a territory by id. */
+    public boolean deleteTerritory(String id) {
+        Territory removed = territories.remove(id);
+        if (removed == null) return false;
+        saveTerritories();
+        return true;
+    }
+
+    // ========================= ADMIN: GANG MEMBER MANAGEMENT =========================
+
+    /** Force-join a player to a gang, bypassing balance. */
+    public boolean adminForceJoin(UUID uuid, String gangId) {
+        Gang g = gangs.get(gangId);
+        if (g == null) return false;
+        g.memberUUIDs.add(uuid);
+        saveMemberships();
+        return true;
+    }
+
+    /** Force-leave a player from whatever gang they're in. */
+    public boolean adminForceLeave(UUID uuid) {
+        for (Gang g : gangs.values()) {
+            if (g.memberUUIDs.remove(uuid)) {
+                if (uuid.equals(g.leaderUUID)) { g.leaderUUID = null; leaders.remove(g.id); }
+                g.lieutenantUUIDs.remove(uuid);
+                saveAll();
+                return true;
+            }
+        }
+        return false;
     }
 
     // ========================= WAR STATE =========================
 
-    public void setWarActive(boolean active) {
-        gangs.values().forEach(g -> g.warActive = active);
-    }
+    public void setWarActive(boolean active) { gangs.values().forEach(g -> g.warActive = active); }
+    public boolean isWarActive() { return gangs.values().stream().anyMatch(g -> g.warActive); }
 
-    public boolean isWarActive() {
-        return gangs.values().stream().anyMatch(g -> g.warActive);
+    // ========================= WEEKLY HOLDING REWARDS =========================
+
+    /** Distribute weekly holding rewards to all gangs that own territories. */
+    public Map<String, Double> distributeWeeklyRewards() {
+        Map<String, Double> distributed = new HashMap<>();
+        for (Territory t : territories.values()) {
+            if (!t.owner.isEmpty() && t.weeklyRewardMoney > 0) {
+                bankDeposit(t.owner, t.weeklyRewardMoney);
+                distributed.merge(t.owner, t.weeklyRewardMoney, Double::sum);
+            }
+        }
+        return distributed;
     }
 
     // ========================= PERSISTENCE =========================
 
     private void saveMemberships() {
-        Map<String, String> memberMap = new HashMap<>();
-        gangs.forEach((id, gang) -> gang.memberUUIDs.forEach(uuid -> memberMap.put(uuid.toString(), id)));
-        ctx.storage().setModuleData("gangs", "members", Json.toJson(memberMap));
+        Map<String, String> m = new HashMap<>();
+        gangs.forEach((id, g) -> g.memberUUIDs.forEach(u -> m.put(u.toString(), id)));
+        ctx.storage().setModuleData("gangs", "members", Json.toJson(m));
     }
 
     private void saveLeaders() {
-        Map<String, String> leaderMap = new HashMap<>();
-        leaders.forEach((k, v) -> leaderMap.put(k, v.toString()));
-        ctx.storage().setModuleData("gangs", "leaders", Json.toJson(leaderMap));
+        Map<String, String> m = new HashMap<>();
+        leaders.forEach((k, v) -> m.put(k, v.toString()));
+        ctx.storage().setModuleData("gangs", "leaders", Json.toJson(m));
     }
 
     private void saveLieutenants() {
-        Map<String, List<String>> map = new HashMap<>();
-        gangs.forEach((id, gang) -> {
-            List<String> uuids = gang.lieutenantUUIDs.stream().map(UUID::toString).toList();
-            if (!uuids.isEmpty()) map.put(id, uuids);
+        Map<String, List<String>> m = new HashMap<>();
+        gangs.forEach((id, g) -> {
+            List<String> l = g.lieutenantUUIDs.stream().map(UUID::toString).toList();
+            if (!l.isEmpty()) m.put(id, l);
         });
-        ctx.storage().setModuleData("gangs", "lieutenants", Json.toJson(map));
+        ctx.storage().setModuleData("gangs", "lieutenants", Json.toJson(m));
     }
 
     private void saveKills() {
-        Map<String, Map<String, Integer>> allTime = new HashMap<>();
-        Map<String, Map<String, Integer>> currentTerm = new HashMap<>();
-        gangs.forEach((id, gang) -> {
-            Map<String, Integer> at = new HashMap<>();
-            gang.killsAllTime.forEach((uuid, count) -> at.put(uuid.toString(), count));
-            if (!at.isEmpty()) allTime.put(id, at);
-            Map<String, Integer> ct = new HashMap<>();
-            gang.killsThisTerm.forEach((uuid, count) -> ct.put(uuid.toString(), count));
-            if (!ct.isEmpty()) currentTerm.put(id, ct);
+        Map<String, Map<String, Integer>> at = new HashMap<>();
+        Map<String, Map<String, Integer>> ct = new HashMap<>();
+        gangs.forEach((id, g) -> {
+            Map<String, Integer> atM = new HashMap<>();
+            g.killsAllTime.forEach((u, c) -> atM.put(u.toString(), c));
+            if (!atM.isEmpty()) at.put(id, atM);
+            Map<String, Integer> ctM = new HashMap<>();
+            g.killsThisTerm.forEach((u, c) -> ctM.put(u.toString(), c));
+            if (!ctM.isEmpty()) ct.put(id, ctM);
         });
-        ctx.storage().setModuleData("gangs", "killsAllTime", Json.toJson(allTime));
-        ctx.storage().setModuleData("gangs", "killsCurrentTerm", Json.toJson(currentTerm));
+        ctx.storage().setModuleData("gangs", "killsAllTime", Json.toJson(at));
+        ctx.storage().setModuleData("gangs", "killsCurrentTerm", Json.toJson(ct));
     }
 
     private void saveBankBalances() {
-        Map<String, String> map = new HashMap<>();
-        gangs.forEach((id, gang) -> map.put(id, String.valueOf(gang.bankBalance)));
-        ctx.storage().setModuleData("gangs", "bankBalance", Json.toJson(map));
+        Map<String, String> m = new HashMap<>();
+        gangs.forEach((id, g) -> m.put(id, String.valueOf(g.bankBalance)));
+        ctx.storage().setModuleData("gangs", "bankBalance", Json.toJson(m));
     }
 
     private void saveVotes() {
@@ -550,12 +627,7 @@ public final class GangManager {
     }
 
     private void saveAll() {
-        saveMemberships();
-        saveLeaders();
-        saveLieutenants();
-        saveKills();
-        saveBankBalances();
-        saveVotes();
-        saveTerritories();
+        saveMemberships(); saveLeaders(); saveLieutenants();
+        saveKills(); saveBankBalances(); saveVotes(); saveTerritories();
     }
 }

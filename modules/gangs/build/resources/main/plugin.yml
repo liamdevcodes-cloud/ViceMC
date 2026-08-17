@@ -1,13 +1,13 @@
 name: ViceGangs
-version: 2.0.0
+version: 3.0.0
 main: net.vicemc.modules.gangs.GangsPlugin
 api-version: 1.21
 depend: [ViceCore]
-description: Two-gang faction system with territory wars, elections, kill tracking and banks.
+description: Admin-configurable gang faction system with territory wars, elections, kill tracking, custom rewards and banks.
 commands:
   gang:
   vote:
 permissions:
   vicemc.gangs.admin:
-    description: Toggle territory wars manually
+    description: Full admin control over gangs - set leaders, create territories, assign regions, manage members, toggle wars
     default: op

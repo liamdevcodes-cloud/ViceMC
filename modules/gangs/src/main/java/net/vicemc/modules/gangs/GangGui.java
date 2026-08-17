@@ -447,7 +447,15 @@ public final class GangGui {
             lore.add(progressLine);
             lore.add("&7Capture time: &f" + t.captureSeconds + "s");
             if (t.rewardMoney > 0) lore.add("&7War reward: &a$" + (int) t.rewardMoney);
-            if (t.rewardGuns > 0) lore.add("&7War reward: &c" + t.rewardGuns + "x weapons");
+            if (t.weeklyRewardMoney > 0) lore.add("&7Weekly income: &a$" + (int) t.weeklyRewardMoney + "/day");
+            if (!t.rewardItems.isEmpty()) {
+                lore.add("&7Reward items: &f" + t.rewardItems.size() + " types");
+                for (ItemStack ri : t.rewardItems) {
+                    String rn = ri.hasItemMeta() && ri.getItemMeta().hasDisplayName()
+                            ? ri.getItemMeta().getDisplayName() : ri.getType().name();
+                    lore.add("  &7- &f" + ri.getAmount() + "x " + rn);
+                }
+            }
             lore.add("&aClick to teleport");
 
             ItemStack item = ItemBuilder.of(mat == null ? Material.LIGHT_GRAY_CONCRETE : mat)
@@ -538,5 +546,12 @@ public final class GangGui {
         if (online != null) return online.getName();
         String name = Bukkit.getOfflinePlayer(uuid).getName();
         return name == null ? uuid.toString().substring(0, 8) : name;
+    }
+
+    public void reload() {
+        joinPage.clear();
+        territoryPage.clear();
+        votePage.clear();
+        memberPage.clear();
     }
 }
