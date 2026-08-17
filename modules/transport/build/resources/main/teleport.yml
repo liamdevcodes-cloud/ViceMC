@@ -1,0 +1,34 @@
+# Vice Transport - Teleporter Configuration
+#
+# Teleporters use a pad block (default: LODESTONE) with a pressure plate
+# on top and a sign 2 blocks above. Use the linker tool (/transport give)
+# to connect pads together.
+#
+# Setup:
+#   1. Place a lodestone block (or configured pad-block)
+#   2. Place a pressure plate on top of it
+#   3. A sign auto-spawns 2 blocks above the pad
+#   4. Get the linker tool: /transport give
+#   5. Right-click the source pad with the linker tool
+#   6. Right-click the destination pad to connect them
+#   7. Type a name for the route in chat
+#
+# Commands:
+#   /transport give     - Get the linker tool
+#   /transport list     - List all teleporters
+#   /transport unlink   - Look at a pad and run to unlink it
+#   /transport reload   - Reload this config
+#
+# Permissions:
+#   vicemc.transport.admin  - Place pads, link teleporters, use admin commands
+#   vicemc.transport.use    - Use teleporters by stepping on pressure plates
+
+# The block used as a teleporter pad. Any block works.
+# Examples: LODESTONE, OBSIDIAN, CRYING_OBSIDIAN, END_STONE, BLACKSTONE
+pad-block: LODESTONE
+
+# Default settings for newly linked teleporters (editable in teleport.yml after).
+default-travel-time: 5
+default-price: 0
+
+teleporters: {}

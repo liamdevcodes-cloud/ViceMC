@@ -1,0 +1,18 @@
+name: ViceTransport
+version: 1.0.0
+main: net.vicemc.modules.transport.TeleportPlugin
+api-version: 1.21
+depend: [ViceCore]
+description: Bus/tram teleporter system with pad-based activation, travel timer and configurable pricing.
+commands:
+  transport:
+    aliases: [tp]
+    description: Transport teleporter admin commands
+    permission: vicemc.transport.admin
+permissions:
+  vicemc.transport.admin:
+    description: Create, configure and manage teleporters.
+    default: op
+  vicemc.transport.use:
+    description: Use teleporters by stepping on pressure plates.
+    default: true

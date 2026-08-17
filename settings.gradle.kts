@@ -19,5 +19,6 @@ include(
     "modules:regions",
     "modules:serial",
     "modules:staff",
-    "modules:stock"
+    "modules:stock",
+    "modules:transport"
 )
