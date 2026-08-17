@@ -521,18 +521,43 @@ public final class TeleportModule implements ViceModule {
             if (world == null) return null;
 
             Location padLoc = new Location(world, destX, destY, destZ);
+            Block padBlock = padLoc.getBlock();
 
-            Block signBlock = padLoc.getBlock().getRelative(0, 2, 0);
-            BlockFace wallFace = BlockFace.NORTH;
+            // sign faces AWAY from the backing wall — that's the direction we want to land
+            Block signBlock = padBlock.getRelative(0, 2, 0);
+            BlockFace signFace = BlockFace.SOUTH;
             if (signBlock.getBlockData() instanceof WallSign ws) {
-                wallFace = ws.getFacing();
+                signFace = ws.getFacing();
             }
-            BlockFace outFace = wallFace.getOppositeFace();
 
-            return new Location(world,
-                    destX + 0.5 + outFace.getModX() * 2,
-                    destY + 2,
-                    destZ + 0.5 + outFace.getModZ() * 2);
+            // try landing spots: straight out, then left, then right, then behind
+            BlockFace[] candidates = {
+                    signFace,
+                    rotateLeft(signFace),
+                    rotateRight(signFace),
+                    signFace.getOppositeFace()
+            };
+
+            for (BlockFace face : candidates) {
+                double x = destX + 0.5 + face.getModX();
+                double z = destZ + 0.5 + face.getModZ();
+                double y = destY + 1;
+
+                Location spot = new Location(world, x, y, z);
+                Location above = new Location(world, x, y + 1, z);
+
+                Block feet = spot.getBlock();
+                Block head = above.getBlock();
+
+                if (feet.getType().isSolid() || head.getType().isSolid()) continue;
+
+                if (head.getType() == Material.AIR || head.getType() == Material.CAVE_AIR) {
+                    return spot;
+                }
+            }
+
+            // fallback: just above the pad
+            return new Location(world, destX + 0.5, destY + 2, destZ + 0.5);
         }
     }
 
@@ -781,5 +806,25 @@ public final class TeleportModule implements ViceModule {
 
     private static String legacyColor(String input) {
         return input.replace('&', '§');
+    }
+
+    private static BlockFace rotateLeft(BlockFace face) {
+        return switch (face) {
+            case NORTH -> BlockFace.WEST;
+            case WEST -> BlockFace.SOUTH;
+            case SOUTH -> BlockFace.EAST;
+            case EAST -> BlockFace.NORTH;
+            default -> face;
+        };
+    }
+
+    private static BlockFace rotateRight(BlockFace face) {
+        return switch (face) {
+            case NORTH -> BlockFace.EAST;
+            case EAST -> BlockFace.SOUTH;
+            case SOUTH -> BlockFace.WEST;
+            case WEST -> BlockFace.NORTH;
+            default -> face;
+        };
     }
 }
