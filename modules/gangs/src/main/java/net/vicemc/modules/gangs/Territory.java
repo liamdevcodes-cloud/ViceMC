@@ -1,9 +1,9 @@
 package net.vicemc.modules.gangs;
 
 /**
- * A neutral contested street zone the two gangs fight over with stand-and-hold
- * capture. Ownership is runtime state (starts neutral) and persists across
- * restarts.
+ * A contested street zone the two gangs fight over with stand-and-hold
+ * capture. Ownership is runtime state and persists across restarts.
+ * During war events, capturing a territory yields rewards.
  */
 public final class Territory {
 
@@ -11,6 +11,12 @@ public final class Territory {
     public String name;
     public String regionTag;
     public int captureSeconds;
+
+    /** Reward money given to the capturing gang. */
+    public double rewardMoney;
+
+    /** Number of gun items given as reward on capture. */
+    public int rewardGuns;
 
     /** The gang that currently owns this zone, or empty for neutral. */
     public String owner = "";

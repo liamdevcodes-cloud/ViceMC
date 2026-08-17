@@ -1,5 +1,5 @@
-# Two fixed gangs: North Side and South Side. These are the only gangs on the
-# server and cannot be changed. Each has its own home territory.
+# Two fixed factions: North Side and South Side.
+# Maximum member difference between gangs is 4 (balancing enforced on join).
 gangs:
   north:
     name: "&bNorth Side"
@@ -18,35 +18,48 @@ gangs:
     drug-amplifier: 3
     drug-duration-seconds: 45
 
-# Weekly election. During the window members vote via /gang vote; the member
-# with the most votes becomes the leader of the gang for the week.
+# Biweekly leader election. Every 2 weeks on the specified day, members vote.
+# Kill stats during the term are shown next to candidates.
 election:
-  day: SUNDAY
+  day: SATURDAY
   hour: 12
   window-hours: 24
+  every-weeks: 2
 
-# How many drugs a member may claim per week once their gang controls a
-# contested territory.
+# Scheduled territory war window (server timezone: Europe/Berlin / CET+CEST).
+# During this window, capturing a territory rewards the gang's bank.
+# Admins can also toggle wars manually with /gang togglewar.
+war:
+  start-day: FRIDAY
+  end-day: SUNDAY
+  start-hour: 20
+  end-hour: 23
+
+# How many drugs a member may claim per week once their gang controls territory.
 weekly-drugs: 5
 
-# Neutral street zones both gangs fight over with stand-and-hold capture. Each
-# zone needs a region defined in game: /vregion pos1 + /vregion pos2 +
-# /vregion create <id> <region-tag>. The gang with more members inside than the
-# other fills the capture bar; at 100% the zone flips to that gang and unlocks
-# their weekly drug booster.
+# Contested zones both gangs fight over. During war events, capturing a zone
+# rewards money and weapons to the capturing gang's bank.
+# Each zone needs a region defined: /vregion pos1 + pos2 + create <id> <region-tag>
 territories:
   market-strip:
     name: "&eMarket Strip"
     region-tag: "gangzone:market"
     capture-seconds: 60
+    reward-money: 500
+    reward-guns: 2
   factory-zone:
     name: "&7Factory Zone"
     region-tag: "gangzone:factory"
     capture-seconds: 90
+    reward-money: 750
+    reward-guns: 3
   docks:
     name: "&9Docks"
     region-tag: "gangzone:docks"
     capture-seconds: 90
+    reward-money: 1000
+    reward-guns: 4
 
 # How often the capture bar ticks (seconds).
 capture:
