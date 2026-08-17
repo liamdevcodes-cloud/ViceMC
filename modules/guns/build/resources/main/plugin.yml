@@ -2,6 +2,7 @@ name: ViceGuns
 version: 1.0.0
 main: net.vicemc.modules.guns.GunsPlugin
 api-version: 1.21
+folia-supported: true
 depend: [ViceCore]
 softdepend: [ProtocolLib]
 description: Firearms with unique serials, per-gun durability, magazines, reloading, aiming and an admin arsenal GUI.
