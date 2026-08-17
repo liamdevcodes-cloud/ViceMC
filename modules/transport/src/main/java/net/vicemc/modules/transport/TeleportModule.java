@@ -194,35 +194,40 @@ public final class TeleportModule implements ViceModule {
 
     void setupWallSign(Location padLoc, Player placer, Teleporter teleporter) {
         Block signBlock = padLoc.getBlock().getRelative(0, 2, 0);
-        ctx.logger().info("[DEBUG] setupWallSign: signBlock at "
-                + signBlock.getX() + "," + signBlock.getY() + "," + signBlock.getZ()
-                + " type=" + signBlock.getType().name()
-                + " signMat=" + signMaterial.name());
 
-        if (signBlock.getType() != Material.AIR && signBlock.getType() != Material.CAVE_AIR) {
-            ctx.logger().info("[DEBUG] setupWallSign: sign block not air, skipping");
+        if (signBlock.getType() == Material.AIR || signBlock.getType() == Material.CAVE_AIR) {
+            BlockFace facing = placer != null ? getHorizontalFacing(placer) : BlockFace.NORTH;
+            BlockFace wallFace = facing.getOppositeFace();
+            Block backingBlock = signBlock.getRelative(wallFace);
+
+            if (!backingBlock.getType().isSolid()) {
+                backingBlock.setType(backingMaterial);
+            }
+
+            signBlock.setType(signMaterial);
+
+            if (signBlock.getBlockData() instanceof WallSign wallSign) {
+                wallSign.setFacing(wallFace);
+                signBlock.setBlockData(wallSign);
+            }
+        }
+
+        updateSignLines(padLoc, teleporter);
+    }
+
+    void updateSignLines(Location padLoc, Teleporter teleporter) {
+        Block signBlock = padLoc.getBlock().getRelative(0, 2, 0);
+        if (!(signBlock.getState() instanceof Sign sign)) {
+            ctx.logger().info("[DEBUG] updateSignLines: no Sign state at "
+                    + signBlock.getX() + "," + signBlock.getY() + "," + signBlock.getZ()
+                    + " type=" + signBlock.getType().name());
             return;
         }
-
-        BlockFace facing = placer != null ? getHorizontalFacing(placer) : BlockFace.NORTH;
-        BlockFace wallFace = facing.getOppositeFace();
-        Block backingBlock = signBlock.getRelative(wallFace);
-
-        if (!backingBlock.getType().isSolid()) {
-            backingBlock.setType(backingMaterial);
-        }
-
-        signBlock.setType(signMaterial);
-
-        if (signBlock.getBlockData() instanceof WallSign wallSign) {
-            wallSign.setFacing(wallFace);
-            signBlock.setBlockData(wallSign);
-        }
-
-        if (signBlock.getState() instanceof Sign sign) {
-            applySignLines(sign, teleporter);
-            sign.update(true, false);
-        }
+        applySignLines(sign, teleporter);
+        sign.update(true, false);
+        ctx.logger().info("[DEBUG] updateSignLines: updated sign at "
+                + signBlock.getX() + "," + signBlock.getY() + "," + signBlock.getZ()
+                + " teleporter=" + (teleporter != null ? teleporter.displayName : "null"));
     }
 
     void applySignLines(Sign sign, Teleporter teleporter) {
@@ -251,14 +256,11 @@ public final class TeleportModule implements ViceModule {
     }
 
     void updateSignAbove(Location padLoc, Teleporter teleporter) {
-        Block signBlock = padLoc.getBlock().getRelative(0, 2, 0);
-        if (!(signBlock.getState() instanceof Sign sign)) return;
-        applySignLines(sign, teleporter);
-        sign.update(true, false);
+        updateSignLines(padLoc, teleporter);
     }
 
     void clearSignAbove(Location padLoc) {
-        updateSignAbove(padLoc, null);
+        updateSignLines(padLoc, null);
     }
 
     BlockFace getHorizontalFacing(Player player) {
