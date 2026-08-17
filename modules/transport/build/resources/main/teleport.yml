@@ -1,34 +1,94 @@
+# ========================================
 # Vice Transport - Teleporter Configuration
+# ========================================
 #
-# Teleporters use a pad block (default: LODESTONE) with a pressure plate
-# on top and a sign 2 blocks above. Use the linker tool (/transport give)
-# to connect pads together.
-#
-# Setup:
-#   1. Place a lodestone block (or configured pad-block)
-#   2. Place a pressure plate on top of it
-#   3. A sign auto-spawns 2 blocks above the pad
-#   4. Get the linker tool: /transport give
-#   5. Right-click the source pad with the linker tool
-#   6. Right-click the destination pad to connect them
-#   7. Type a name for the route in chat
+# How it works:
+#   1. Admin places the pad block (default: lodestone)
+#   2. A pressure plate auto-spawns on top + a wall sign 2 blocks up
+#   3. /transport give -> get the wand
+#   4. Right-click source pad -> right-click destination pad
+#   5. Type a route name in chat
+#   6. Player steps on the plate -> darkness + boss bar countdown -> teleport
 #
 # Commands:
-#   /transport give     - Get the linker tool
-#   /transport list     - List all teleporters
-#   /transport unlink   - Look at a pad and run to unlink it
-#   /transport reload   - Reload this config
+#   /transport give    - Get the transport wand
+#   /transport wand    - Alias for /give
+#   /transport list    - List all teleporters
+#   /transport unlink  - Look at a pad and run to break its link
+#   /transport reload  - Reload this config
 #
 # Permissions:
-#   vicemc.transport.admin  - Place pads, link teleporters, use admin commands
-#   vicemc.transport.use    - Use teleporters by stepping on pressure plates
+#   vicemc.transport.admin  - Place pads, use wand, admin commands
+#   vicemc.transport.use    - Step on plates to teleport
 
-# The block used as a teleporter pad. Any block works.
-# Examples: LODESTONE, OBSIDIAN, CRYING_OBSIDIAN, END_STONE, BLACKSTONE
+# =====================
+#  Block Configuration
+# =====================
+
+# The teleporter pad block that admins place
 pad-block: LODESTONE
 
-# Default settings for newly linked teleporters (editable in teleport.yml after).
-default-travel-time: 5
+# Weighted pressure plate placed on top of the pad
+# Options: LIGHT_WEIGHTED_PRESSURE_PLATE, HEAVY_WEIGHTED_PRESSURE_PLATE,
+#          STONE_PRESSURE_PLATE, OAK_PRESSURE_PLATE, etc.
+plate-block: HEAVY_WEIGHTED_PRESSURE_PLATE
+
+# Wall sign material (attached to a backing block above the pad)
+# Options: OAK_WALL_SIGN, SPRUCE_WALL_SIGN, BIRCH_WALL_SIGN, JUNGLE_WALL_SIGN,
+#          ACACIA_WALL_SIGN, DARK_OAK_WALL_SIGN, MANGROVE_WALL_SIGN,
+#          CRIMSON_WALL_SIGN, WARPED_WALL_SIGN, POLISHED_BLACKSTONE_WALL_SIGN, etc.
+sign-block: OAK_WALL_SIGN
+
+# Solid block placed behind the wall sign as a backing
+# Options: STONE_BRICKS, COBBLESTONE, OBSIDIAN, DEEPSLATE_BRICKS, etc.
+backing-block: STONE_BRICKS
+
+# =====================
+#  Teleport Settings
+# =====================
+
+# Default price for newly linked teleporters (0 = free)
 default-price: 0
 
+# Default travel time in seconds (countdown duration)
+default-travel-time: 5
+
+# =====================
+#  Sign Templates
+# =====================
+# Use %name%, %price%, %travel% as placeholders
+# Use & for color codes
+
+# Line 1 of the wall sign (header)
+sign-prefix: "&6&l[TELEPORT]"
+
+# Line 2 template (route name)
+sign-line2-template: "&f%name%"
+
+# Line 3 template (price)
+sign-line3-template: "&a%price%"
+
+# Line 4 template (travel time)
+sign-line4-template: "&7%travel%s trip"
+
+# =====================
+#  Boss Bar Settings
+# =====================
+
+# Boss bar title during countdown (use %name% for route name)
+bossbar-title: "&eTeleporting to &f%name%"
+
+# Boss bar color: BLUE, GREEN, PINK, PURPLE, RED, WHITE, YELLOW
+bossbar-color: RED
+
+# =====================
+#  Messages
+# =====================
+
+link-confirm: "&7Price: &f%price% &7| Travel time: &f%travel%s"
+
+# =====================
+#  Teleporter Data
+# =====================
+# Managed automatically by the wand. Edit manually if needed.
 teleporters: {}
