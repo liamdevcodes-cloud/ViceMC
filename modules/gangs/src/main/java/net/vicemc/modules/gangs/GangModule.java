@@ -167,6 +167,11 @@ public final class GangModule implements ViceModule, Listener {
     }
 
     // ========================= ADMIN COMMANDS =========================
+    // NOTE: In all admin methods, arg layout is:
+    //   c.arg(0) = "admin"
+    //   c.arg(1) = subcommand ("setleader", "createterritory", etc.)
+    //   c.arg(2) = first real argument
+    //   c.arg(3) = second real argument, etc.
 
     private boolean requireAdmin(CommandContext c) {
         if (c.sender().hasPermission(ADMIN_PERM)) return true;
@@ -213,10 +218,10 @@ public final class GangModule implements ViceModule, Listener {
     }
 
     private void adminSetLeader(CommandContext c) {
-        if (c.size() < 3) { c.usage("/gang admin setleader <player> <north|south>"); return; }
-        Player target = c.playerArg(1);
+        if (c.size() < 4) { c.usage("/gang admin setleader <player> <north|south>"); return; }
+        Player target = c.playerArg(2);
         if (target == null) { c.error("Player not found."); return; }
-        String gangId = c.arg(2).toLowerCase();
+        String gangId = c.arg(3).toLowerCase();
         if (manager.gang(gangId) == null) { c.error("Invalid gang. Use: north, south"); return; }
         if (!manager.isMember(target.getUniqueId(), gangId)) {
             manager.adminForceJoin(target.getUniqueId(), gangId);
@@ -227,10 +232,10 @@ public final class GangModule implements ViceModule, Listener {
     }
 
     private void adminSetLieutenant(CommandContext c) {
-        if (c.size() < 3) { c.usage("/gang admin setlieutenant <player> <north|south>"); return; }
-        Player target = c.playerArg(1);
+        if (c.size() < 4) { c.usage("/gang admin setlieutenant <player> <north|south>"); return; }
+        Player target = c.playerArg(2);
         if (target == null) { c.error("Player not found."); return; }
-        String gangId = c.arg(2).toLowerCase();
+        String gangId = c.arg(3).toLowerCase();
         if (manager.gang(gangId) == null) { c.error("Invalid gang. Use: north, south"); return; }
         if (!manager.isMember(target.getUniqueId(), gangId)) {
             manager.adminForceJoin(target.getUniqueId(), gangId);
@@ -241,28 +246,28 @@ public final class GangModule implements ViceModule, Listener {
     }
 
     private void adminSetMember(CommandContext c) {
-        if (c.size() < 3) { c.usage("/gang admin setmember <player> <north|south>"); return; }
-        Player target = c.playerArg(1);
+        if (c.size() < 4) { c.usage("/gang admin setmember <player> <north|south>"); return; }
+        Player target = c.playerArg(2);
         if (target == null) { c.error("Player not found."); return; }
-        String gangId = c.arg(2).toLowerCase();
+        String gangId = c.arg(3).toLowerCase();
         if (manager.gang(gangId) == null) { c.error("Invalid gang. Use: north, south"); return; }
         manager.adminForceJoin(target.getUniqueId(), gangId);
         c.msg("&aForce-placed &f" + target.getName() + " &ainto &f" + manager.gang(gangId).name);
     }
 
     private void adminForceJoin(CommandContext c) {
-        if (c.size() < 3) { c.usage("/gang admin forcejoin <player> <north|south>"); return; }
-        Player target = c.playerArg(1);
+        if (c.size() < 4) { c.usage("/gang admin forcejoin <player> <north|south>"); return; }
+        Player target = c.playerArg(2);
         if (target == null) { c.error("Player not found."); return; }
-        String gangId = c.arg(2).toLowerCase();
+        String gangId = c.arg(3).toLowerCase();
         if (manager.gang(gangId) == null) { c.error("Invalid gang. Use: north, south"); return; }
         manager.adminForceJoin(target.getUniqueId(), gangId);
         c.msg("&aForce-joined &f" + target.getName() + " &ainto &f" + manager.gang(gangId).name + " &7(bypassing balance)");
     }
 
     private void adminForceLeave(CommandContext c) {
-        if (c.size() < 2) { c.usage("/gang admin forceleave <player>"); return; }
-        Player target = c.playerArg(1);
+        if (c.size() < 3) { c.usage("/gang admin forceleave <player>"); return; }
+        Player target = c.playerArg(2);
         if (target == null) { c.error("Player not found."); return; }
         if (manager.adminForceLeave(target.getUniqueId())) {
             c.msg("&aRemoved &f" + target.getName() + " &afrom their gang.");
@@ -272,13 +277,13 @@ public final class GangModule implements ViceModule, Listener {
     }
 
     private void adminCreateTerritory(CommandContext c) {
-        if (c.size() < 2) { c.usage("/gang admin createterritory <id> [name] [captureSeconds] [rewardMoney] [weeklyReward]"); return; }
-        String id = c.arg(1).toLowerCase();
+        if (c.size() < 3) { c.usage("/gang admin createterritory <id> [name] [captureSeconds] [rewardMoney] [weeklyReward]"); return; }
+        String id = c.arg(2).toLowerCase();
         if (manager.territory(id) != null) { c.error("Territory '" + id + "' already exists."); return; }
-        String name = c.arg(2, "&e" + id);
-        int capture = c.argInt(3, 60);
-        double reward = c.argDouble(4, 0);
-        double weekly = c.argDouble(5, 0);
+        String name = c.arg(3, "&e" + id);
+        int capture = c.argInt(4, 60);
+        double reward = c.argDouble(5, 0);
+        double weekly = c.argDouble(6, 0);
         Territory t = manager.createTerritory(id, name, "gangzone:" + id, capture, reward, weekly);
         if (t != null) {
             c.msg("&aCreated territory '&f" + id + "&a' - use &e/gang admin setregion " + id + " <regionTag> &ato assign a region.");
@@ -288,8 +293,8 @@ public final class GangModule implements ViceModule, Listener {
     }
 
     private void adminDeleteTerritory(CommandContext c) {
-        if (c.size() < 2) { c.usage("/gang admin deleteterritory <id>"); return; }
-        String id = c.arg(1).toLowerCase();
+        if (c.size() < 3) { c.usage("/gang admin deleteterritory <id>"); return; }
+        String id = c.arg(2).toLowerCase();
         if (manager.deleteTerritory(id)) {
             c.msg("&aDeleted territory '&f" + id + "&a'.");
         } else {
@@ -298,9 +303,9 @@ public final class GangModule implements ViceModule, Listener {
     }
 
     private void adminSetRegion(CommandContext c) {
-        if (c.size() < 3) { c.usage("/gang admin setregion <territoryId> <regionTag>"); return; }
-        String id = c.arg(1).toLowerCase();
-        String tag = c.arg(2);
+        if (c.size() < 4) { c.usage("/gang admin setregion <territoryId> <regionTag>"); return; }
+        String id = c.arg(2).toLowerCase();
+        String tag = c.arg(3);
         if (manager.setTerritoryRegion(id, tag)) {
             c.msg("&aSet region tag for &f" + id + " &ato &f" + tag);
         } else {
@@ -309,9 +314,9 @@ public final class GangModule implements ViceModule, Listener {
     }
 
     private void adminSetCaptureTime(CommandContext c) {
-        if (c.size() < 3) { c.usage("/gang admin setcapturetime <territoryId> <seconds>"); return; }
-        String id = c.arg(1).toLowerCase();
-        int seconds = c.argInt(2, 60);
+        if (c.size() < 4) { c.usage("/gang admin setcapturetime <territoryId> <seconds>"); return; }
+        String id = c.arg(2).toLowerCase();
+        int seconds = c.argInt(3, 60);
         if (manager.setTerritoryCaptureTime(id, seconds)) {
             c.msg("&aSet capture time for &f" + id + " &ato &f" + seconds + "s");
         } else {
@@ -320,9 +325,9 @@ public final class GangModule implements ViceModule, Listener {
     }
 
     private void adminSetRewardMoney(CommandContext c) {
-        if (c.size() < 3) { c.usage("/gang admin setrewardmoney <territoryId> <amount>"); return; }
-        String id = c.arg(1).toLowerCase();
-        double amount = c.argDouble(2, 0);
+        if (c.size() < 4) { c.usage("/gang admin setrewardmoney <territoryId> <amount>"); return; }
+        String id = c.arg(2).toLowerCase();
+        double amount = c.argDouble(3, 0);
         if (manager.setTerritoryRewardMoney(id, amount)) {
             c.msg("&aSet capture reward for &f" + id + " &ato &a$" + String.format("%.0f", amount));
         } else {
@@ -331,9 +336,9 @@ public final class GangModule implements ViceModule, Listener {
     }
 
     private void adminSetWeeklyReward(CommandContext c) {
-        if (c.size() < 3) { c.usage("/gang admin setweeklyreward <territoryId> <amount>"); return; }
-        String id = c.arg(1).toLowerCase();
-        double amount = c.argDouble(2, 0);
+        if (c.size() < 4) { c.usage("/gang admin setweeklyreward <territoryId> <amount>"); return; }
+        String id = c.arg(2).toLowerCase();
+        double amount = c.argDouble(3, 0);
         if (manager.setTerritoryWeeklyReward(id, amount)) {
             c.msg("&aSet weekly holding reward for &f" + id + " &ato &a$" + String.format("%.0f", amount));
         } else {
@@ -342,11 +347,11 @@ public final class GangModule implements ViceModule, Listener {
     }
 
     private void adminAddRewardItem(CommandContext c) {
-        if (c.size() < 3) { c.usage("/gang admin addrewarditem <territoryId> <MATERIAL> [amount]"); return; }
-        String id = c.arg(1).toLowerCase();
-        Material mat = Material.matchMaterial(c.arg(2).toUpperCase());
-        if (mat == null) { c.error("Invalid material: " + c.arg(2)); return; }
-        int amount = c.argInt(3, 1);
+        if (c.size() < 4) { c.usage("/gang admin addrewarditem <territoryId> <MATERIAL> [amount]"); return; }
+        String id = c.arg(2).toLowerCase();
+        Material mat = Material.matchMaterial(c.arg(3).toUpperCase());
+        if (mat == null) { c.error("Invalid material: " + c.arg(3)); return; }
+        int amount = c.argInt(4, 1);
         ItemStack item = ItemBuilder.of(mat).name("&c" + mat.name()).build();
         item.setAmount(amount);
         if (manager.addTerritoryRewardItem(id, item)) {
@@ -357,8 +362,8 @@ public final class GangModule implements ViceModule, Listener {
     }
 
     private void adminClearRewardItems(CommandContext c) {
-        if (c.size() < 2) { c.usage("/gang admin clearrewarditems <territoryId>"); return; }
-        String id = c.arg(1).toLowerCase();
+        if (c.size() < 3) { c.usage("/gang admin clearrewarditems <territoryId>"); return; }
+        String id = c.arg(2).toLowerCase();
         if (manager.clearTerritoryRewardItems(id)) {
             c.msg("&aCleared reward items for &f" + id);
         } else {
