@@ -94,7 +94,7 @@ public final class TeleportModule implements ViceModule {
             Player player = Bukkit.getPlayer(t.playerUuid);
             if (player != null && player.isOnline()) {
                 player.removePotionEffect(PotionEffectType.DARKNESS);
-                player.showBossBar(t.bossBar);
+                player.hideBossBar(t.bossBar);
             }
         });
         activeTeleports.clear();
@@ -178,18 +178,31 @@ public final class TeleportModule implements ViceModule {
 
     void setupPadStructure(Location padLoc, Player placer) {
         Block padBlock = padLoc.getBlock();
+        ctx.logger().info("[DEBUG] setupPadStructure: placing plate at "
+                + padBlock.getX() + "," + (padBlock.getY()+1) + "," + padBlock.getZ()
+                + " material=" + plateMaterial.name());
 
         Block plateBlock = padBlock.getRelative(0, 1, 0);
         if (plateBlock.getType() == Material.AIR || plateBlock.getType() == Material.CAVE_AIR) {
             plateBlock.setType(plateMaterial);
         }
 
+        ctx.logger().info("[DEBUG] setupPadStructure: plate placed=" + plateBlock.getType().name());
+
         setupWallSign(padLoc, placer, null);
     }
 
     void setupWallSign(Location padLoc, Player placer, Teleporter teleporter) {
         Block signBlock = padLoc.getBlock().getRelative(0, 2, 0);
-        if (signBlock.getType() != Material.AIR && signBlock.getType() != Material.CAVE_AIR) return;
+        ctx.logger().info("[DEBUG] setupWallSign: signBlock at "
+                + signBlock.getX() + "," + signBlock.getY() + "," + signBlock.getZ()
+                + " type=" + signBlock.getType().name()
+                + " signMat=" + signMaterial.name());
+
+        if (signBlock.getType() != Material.AIR && signBlock.getType() != Material.CAVE_AIR) {
+            ctx.logger().info("[DEBUG] setupWallSign: sign block not air, skipping");
+            return;
+        }
 
         BlockFace facing = placer != null ? getHorizontalFacing(placer) : BlockFace.NORTH;
         BlockFace wallFace = facing.getOppositeFace();
@@ -274,7 +287,13 @@ public final class TeleportModule implements ViceModule {
 
     void activate(Player player, Teleporter teleporter) {
         UUID uuid = player.getUniqueId();
-        if (activeTeleports.containsKey(uuid)) return;
+        if (activeTeleports.containsKey(uuid)) {
+            ctx.logger().info("[DEBUG] activate(): " + player.getName() + " already teleporting, ignoring");
+            return;
+        }
+
+        ctx.logger().info("[DEBUG] activate(): " + player.getName() + " -> " + teleporter.displayName
+                + " price=" + teleporter.price + " travel=" + teleporter.travelTime + "s");
 
         if (teleporter.price > 0) {
             double bal = ctx.economy().balance(uuid);
@@ -316,7 +335,7 @@ public final class TeleportModule implements ViceModule {
         if (active == null) return;
         active.cancel();
         player.removePotionEffect(PotionEffectType.DARKNESS);
-        player.showBossBar(active.bossBar);
+        player.hideBossBar(active.bossBar);
         ctx.notifications().msg(player, "&7Teleport cancelled.");
     }
 
@@ -432,6 +451,10 @@ public final class TeleportModule implements ViceModule {
         UUID uuid = player.getUniqueId();
         pendingLinks.remove(uuid);
 
+        ctx.logger().info("[DEBUG] handleLinkInput: " + player.getName() + " input=" + input);
+        ctx.logger().info("[DEBUG] handleLinkInput: source=" + link.source.getBlockX() + "," + link.source.getBlockY() + "," + link.source.getBlockZ()
+                + " dest=" + link.destination.getBlockX() + "," + link.destination.getBlockY() + "," + link.destination.getBlockZ());
+
         if (input.equalsIgnoreCase("cancel")) {
             ctx.notifications().msg(player, "&7Linking cancelled.");
             return;
@@ -494,7 +517,20 @@ public final class TeleportModule implements ViceModule {
         Location destination() {
             var world = Bukkit.getWorld(destWorld);
             if (world == null) return null;
-            return new Location(world, destX + 0.5, destY, destZ + 0.5);
+
+            Location padLoc = new Location(world, destX, destY, destZ);
+
+            Block signBlock = padLoc.getBlock().getRelative(0, 2, 0);
+            BlockFace wallFace = BlockFace.NORTH;
+            if (signBlock.getBlockData() instanceof WallSign ws) {
+                wallFace = ws.getFacing();
+            }
+            BlockFace outFace = wallFace.getOppositeFace();
+
+            return new Location(world,
+                    destX + 0.5 + outFace.getModX() * 2,
+                    destY + 2,
+                    destZ + 0.5 + outFace.getModZ() * 2);
         }
     }
 
@@ -543,21 +579,26 @@ public final class TeleportModule implements ViceModule {
                             if (!result.success()) {
                                 ctx.notifications().warn(player, "&cPayment failed: " + result.detail());
                                 player.removePotionEffect(PotionEffectType.DARKNESS);
-                                player.showBossBar(bossBar);
+                                player.hideBossBar(bossBar);
                                 return;
                             }
                         }
 
                         Location dest = teleporter.destination();
                         if (dest == null) {
+                            ctx.logger().info("[DEBUG] teleport FAILED: destination world '" + teleporter.destWorld + "' not loaded");
                             ctx.notifications().warn(player, "&cDestination world is not loaded.");
                             player.removePotionEffect(PotionEffectType.DARKNESS);
-                            player.showBossBar(bossBar);
+                            player.hideBossBar(bossBar);
                             return;
                         }
 
                         player.removePotionEffect(PotionEffectType.DARKNESS);
-                        player.showBossBar(bossBar);
+                        player.hideBossBar(bossBar);
+                        ctx.logger().info("[DEBUG] teleport OK: " + player.getName() + " -> "
+                                + dest.getWorld().getName() + " "
+                                + dest.getBlockX() + "," + dest.getBlockY() + "," + dest.getBlockZ()
+                                + " (pad was " + teleporter.destX + "," + teleporter.destY + "," + teleporter.destZ + ")");
                         player.teleport(dest);
                         ctx.notifications().msg(player, "&aArrived at &f" + teleporter.displayName + "&a!");
                     }
@@ -613,6 +654,11 @@ public final class TeleportModule implements ViceModule {
 
             Location padLoc = findPadBelow(block);
             if (padLoc == null) return;
+
+            ctx.logger().info("[DEBUG] onPhysicalInteract: " + event.getPlayer().getName()
+                    + " stepped on " + block.getType().name()
+                    + " padBelow=" + (padLoc != null ? padLoc.getBlockX() + "," + padLoc.getBlockY() + "," + padLoc.getBlockZ() : "null")
+                    + " padBlockBelow=" + block.getRelative(0,-1,0).getType().name());
 
             Teleporter teleporter = findByPad(padLoc);
             if (teleporter == null) {
