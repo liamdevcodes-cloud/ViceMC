@@ -126,6 +126,15 @@ public final class GangManager {
                 votes.put(gang, inner);
             });
         });
+
+        // Gang region overrides (admin-set region tags)
+        ctx.storage().getModuleData("gangs", "gangRegions").ifPresent(json -> {
+            Map<String, String> map = Json.fromJson(json, new TypeToken<Map<String, String>>() {}.getType());
+            if (map != null) map.forEach((gangId, tag) -> {
+                Gang g = gangs.get(gangId);
+                if (g != null) g.regionTag = tag;
+            });
+        });
     }
 
     private void loadTerritories() {
@@ -303,6 +312,29 @@ public final class GangManager {
         if (isLeader(uuid, gangId)) return "Leader";
         if (isLieutenant(uuid, gangId)) return "Lieutenant";
         return "Member";
+    }
+
+    // ========================= GANG REGION =========================
+
+    /** Get the region tag assigned to a gang (admin override or config default). */
+    public String gangRegionTag(String gangId) {
+        Gang g = gangs.get(gangId);
+        return g == null ? "" : g.regionTag;
+    }
+
+    /** Set a gang's region tag (admin override). Persists to storage. */
+    public boolean setGangRegion(String gangId, String regionTag) {
+        Gang g = gangs.get(gangId);
+        if (g == null) return false;
+        g.regionTag = regionTag;
+        saveGangRegions();
+        return true;
+    }
+
+    private void saveGangRegions() {
+        Map<String, String> map = new HashMap<>();
+        gangs.forEach((id, g) -> map.put(id, g.regionTag));
+        ctx.storage().setModuleData("gangs", "gangRegions", Json.toJson(map));
     }
 
     // ========================= KILLS =========================

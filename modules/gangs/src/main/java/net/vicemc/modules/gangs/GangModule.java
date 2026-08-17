@@ -120,9 +120,13 @@ public final class GangModule implements ViceModule, Listener {
                 .tabulates((c, a) -> {
                     if (a.size() <= 1) return List.of("join", "leave", "info", "members", "vote", "drugs", "territories", "kick", "bank", "promote", "demote", "admin");
                     if (a.get(0).equals("admin")) {
-                        if (a.size() <= 2) return List.of("setleader", "setlieutenant", "setmember", "forcejoin", "forceleave", "createterritory", "deleteterritory", "setregion", "setcapturetime", "setrewardmoney", "setweeklyreward", "addrewarditem", "clearrewarditems", "togglewar", "reload");
-                        if (a.get(1).equals("setleader") || a.get(1).equals("setlieutenant") || a.get(1).equals("setmember") || a.get(1).equals("forcejoin") || a.get(1).equals("forceleave"))
-                            return playerNames();
+                        if (a.size() <= 2) return List.of("setleader", "setlieutenant", "setmember", "forcejoin", "forceleave", "createterritory", "deleteterritory", "setregion", "setcapturetime", "setrewardmoney", "setweeklyreward", "addrewarditem", "clearrewarditems", "setgangregion", "togglewar", "reload");
+                        if (a.get(1).equals("setleader") || a.get(1).equals("setlieutenant") || a.get(1).equals("setmember") || a.get(1).equals("forcejoin") || a.get(1).equals("forceleave")) {
+                            if (a.size() <= 3) return playerNames();
+                            return List.of("north", "south");
+                        }
+                        if (a.get(1).equals("setgangregion"))
+                            return List.of("north", "south");
                         if (a.get(1).equals("createterritory"))
                             return List.of("<id>");
                         if (a.get(1).equals("deleteterritory") || a.get(1).equals("setregion") || a.get(1).equals("setcapturetime") || a.get(1).equals("setrewardmoney") || a.get(1).equals("setweeklyreward") || a.get(1).equals("clearrewarditems") || a.get(1).equals("addrewarditem"))
@@ -198,6 +202,7 @@ public final class GangModule implements ViceModule, Listener {
             case "clearrewarditems" -> adminClearRewardItems(c);
             case "togglewar" -> { if (c.isPlayer()) toggleWar(c.player()); }
             case "reload" -> adminReload(c);
+            case "setgangregion" -> adminSetGangRegion(c);
             default -> c.msg("&6Admin commands:\n"
                     + "  &e/gang admin setleader <player> <north|south> &7- Assign gang leader\n"
                     + "  &e/gang admin setlieutenant <player> <north|south> &7- Assign lieutenant\n"
@@ -213,6 +218,7 @@ public final class GangModule implements ViceModule, Listener {
                     + "  &e/gang admin addrewarditem <territory> <MATERIAL> [amount] &7- Add reward item\n"
                     + "  &e/gang admin clearrewarditems <territory> &7- Clear reward items\n"
                     + "  &e/gang admin togglewar &7- Toggle territory war\n"
+                    + "  &e/gang admin setgangregion <north|south> <regionTag> &7- Assign gang area\n"
                     + "  &e/gang admin reload &7- Reload config");
         }
     }
@@ -378,6 +384,18 @@ public final class GangModule implements ViceModule, Listener {
         manager.reload();
         gui.reload();
         c.msg("&aGangs config reloaded.");
+    }
+
+    private void adminSetGangRegion(CommandContext c) {
+        if (c.size() < 4) { c.usage("/gang admin setgangregion <north|south> <regionTag>"); return; }
+        String gangId = c.arg(2).toLowerCase();
+        if (manager.gang(gangId) == null) { c.error("Invalid gang. Use: north, south"); return; }
+        String regionTag = c.arg(3);
+        if (manager.setGangRegion(gangId, regionTag)) {
+            c.msg("&aSet &f" + manager.gang(gangId).name + " &aregion to &f" + regionTag);
+        } else {
+            c.error("Could not set gang region.");
+        }
     }
 
     // ========================= PLAYER COMMANDS =========================
