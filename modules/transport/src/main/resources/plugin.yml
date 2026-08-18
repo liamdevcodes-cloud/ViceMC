@@ -6,7 +6,6 @@ depend: [ViceCore]
 description: Bus/tram teleporter system with pad-based activation, travel timer and configurable pricing.
 commands:
   transport:
-    aliases: [tp]
     description: Transport teleporter admin commands
     permission: vicemc.transport.admin
 permissions:

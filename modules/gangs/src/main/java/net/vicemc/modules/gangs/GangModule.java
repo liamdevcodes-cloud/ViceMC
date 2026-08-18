@@ -120,7 +120,7 @@ public final class GangModule implements ViceModule, Listener {
                 .tabulates((c, a) -> {
                     if (a.size() <= 1) return List.of("join", "leave", "info", "members", "vote", "drugs", "territories", "kick", "bank", "promote", "demote", "admin");
                     if (a.get(0).equals("admin")) {
-                        if (a.size() <= 2) return List.of("setleader", "setlieutenant", "setmember", "forcejoin", "forceleave", "createterritory", "deleteterritory", "setregion", "setcapturetime", "setrewardmoney", "setweeklyreward", "addrewarditem", "clearrewarditems", "setgangregion", "togglewar", "reload");
+                        if (a.size() <= 2) return List.of("setleader", "setlieutenant", "setmember", "forcejoin", "forceleave", "createterritory", "deleteterritory", "setregion", "setcapturetime", "setrewardmoney", "setweeklyreward", "addrewarditem", "clearrewarditems", "setgangregion", "startwar", "stopwar", "togglewar", "reload");
                         if (a.get(1).equals("setleader") || a.get(1).equals("setlieutenant") || a.get(1).equals("setmember") || a.get(1).equals("forcejoin") || a.get(1).equals("forceleave")) {
                             if (a.size() <= 3) return playerNames();
                             return List.of("north", "south");
@@ -201,6 +201,8 @@ public final class GangModule implements ViceModule, Listener {
             case "addrewarditem" -> adminAddRewardItem(c);
             case "clearrewarditems" -> adminClearRewardItems(c);
             case "togglewar" -> { if (c.isPlayer()) toggleWar(c.player()); }
+            case "startwar" -> adminStartWar(c);
+            case "stopwar" -> adminStopWar(c);
             case "reload" -> adminReload(c);
             case "setgangregion" -> adminSetGangRegion(c);
             default -> c.msg("&6Admin commands:\n"
@@ -217,6 +219,8 @@ public final class GangModule implements ViceModule, Listener {
                     + "  &e/gang admin setweeklyreward <territory> <amount> &7- Set weekly holding reward\n"
                     + "  &e/gang admin addrewarditem <territory> <MATERIAL> [amount] &7- Add reward item\n"
                     + "  &e/gang admin clearrewarditems <territory> &7- Clear reward items\n"
+                    + "  &e/gang admin startwar &7- Force start territory war\n"
+                    + "  &e/gang admin stopwar &7- Force stop territory war\n"
                     + "  &e/gang admin togglewar &7- Toggle territory war\n"
                     + "  &e/gang admin setgangregion <gangId> <regionTag> &7- Assign gang area\n"
                     + "  &e  Example: /gang admin setgangregion north gangzone:north\n"
@@ -599,6 +603,22 @@ public final class GangModule implements ViceModule, Listener {
             ctx.notifications().msg(admin, "&7Still within scheduled window.");
             adminWarToggle = true;
         }
+    }
+
+    private void adminStartWar(CommandContext c) {
+        adminWarToggle = true;
+        warActive = true;
+        manager.setWarActive(true);
+        ctx.notifications().broadcast("&6&lTERRITORY WAR force started by admin!");
+        c.msg("&aWar started.");
+    }
+
+    private void adminStopWar(CommandContext c) {
+        adminWarToggle = false;
+        warActive = false;
+        manager.setWarActive(false);
+        ctx.notifications().broadcast("&7Territory war force stopped by admin.");
+        c.msg("&aWar stopped.");
     }
 
     private boolean isScheduledWarActive() {

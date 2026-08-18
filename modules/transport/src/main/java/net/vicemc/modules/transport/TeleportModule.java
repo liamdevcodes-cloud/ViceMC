@@ -73,12 +73,16 @@ public final class TeleportModule implements ViceModule {
 
         ctx.commands().register(ctx.plugin(), CommandSpec.builder()
                 .name("transport")
-                .aliases("tp")
                 .permission("vicemc.transport.admin")
                 .description("Transport teleporter admin commands")
                 .executes(this::onCommand)
                 .tabulates((c, a) -> {
-                    if (a.size() <= 1) return List.of("reload", "list", "unlink", "give", "wand");
+                    if (a.size() <= 1) return List.of("reload", "list", "delete", "unlink", "give", "wand");
+                    if (a.get(0).equalsIgnoreCase("delete") && a.size() <= 2) {
+                        Set<String> names = new HashSet<>();
+                        teleporters.values().forEach(t -> { if (t != null) names.add(t.displayName); });
+                        return new ArrayList<>(names);
+                    }
                     return List.of();
                 })
                 .build());
@@ -369,6 +373,7 @@ public final class TeleportModule implements ViceModule {
             c.msg("&6&l/transport &8- &7Vice Transport Commands");
             c.msg("  &f/give &8- &7Get the transport wand");
             c.msg("  &f/list &8- &7List all teleporters");
+            c.msg("  &f/delete <name> &8- &7Delete a teleporter by name");
             c.msg("  &f/unlink &8- &7Unlink a pad you look at");
             c.msg("  &f/wand &8- &7Alias for /give");
             c.msg("  &f/reload &8- &7Reload configuration");
@@ -382,6 +387,7 @@ public final class TeleportModule implements ViceModule {
                 c.msg("&aReloaded teleport.yml: " + teleporters.size() + " teleporter(s) loaded.");
             }
             case "list" -> listTeleporters(c);
+            case "delete" -> deleteTeleporter(c);
             case "unlink" -> {
                 if (!c.isPlayer()) { c.error("Only players can unlink."); return; }
                 unlinkPad(c.player());
@@ -390,7 +396,7 @@ public final class TeleportModule implements ViceModule {
                 if (!c.isPlayer()) { c.error("Only players can receive the wand."); return; }
                 giveLinker(c.player());
             }
-            default -> c.msg("&6/transport give | list | unlink | reload");
+            default -> c.msg("&6/transport give | list | delete | unlink | reload");
         }
     }
 
@@ -411,6 +417,35 @@ public final class TeleportModule implements ViceModule {
                     + " &8(" + t.travelTime + "s, "
                     + (t.price > 0 ? "$" + String.format("%.2f", t.price) : "free") + ")");
         }
+    }
+
+    private void deleteTeleporter(net.vicemc.api.service.CommandContext c) {
+        if (c.size() < 2) { c.usage("/transport delete <name>"); return; }
+        String name = c.arg(1);
+        int removed = 0;
+        var it = teleporters.entrySet().iterator();
+        while (it.hasNext()) {
+            var entry = it.next();
+            if (entry.getValue() != null && entry.getValue().displayName.equalsIgnoreCase(name)) {
+                // Reconstruct pad location from key (world:x:y:z) and clear sign above
+                String[] parts = entry.getKey().split(":");
+                if (parts.length == 4) {
+                    var world = Bukkit.getWorld(parts[0]);
+                    if (world != null) {
+                        Location padLoc = new Location(world, Integer.parseInt(parts[1]), Integer.parseInt(parts[2]), Integer.parseInt(parts[3]));
+                        clearSignAbove(padLoc);
+                    }
+                }
+                it.remove();
+                removed++;
+            }
+        }
+        if (removed == 0) {
+            c.error("No teleporter found with name '" + name + "'. Use /transport list to see names.");
+            return;
+        }
+        saveTeleporters();
+        c.msg("&aDeleted " + removed + " pad(s) for teleporter '" + name + "'.");
     }
 
     private void unlinkPad(Player player) {
@@ -466,20 +501,25 @@ public final class TeleportModule implements ViceModule {
         double price = config.getDouble("default-price", 0);
         int travelTime = config.getInt("default-travel-time", 5);
 
-        Teleporter teleporter = new Teleporter(
-                link.destination.getWorld().getName(),
-                link.destination.getBlockX(),
-                link.destination.getBlockY(),
-                link.destination.getBlockZ(),
-                travelTime, price, name, "", "", "", "");
-
         String sourceKey = locKey(link.source);
         String destKey = locKey(link.destination);
-        teleporters.put(sourceKey, teleporter);
-        teleporters.put(destKey, teleporter);
 
-        setupWallSign(link.source, player, teleporter);
-        setupWallSign(link.destination, player, teleporter);
+        // Source pad -> destination
+        Teleporter srcTeleporter = new Teleporter(
+                link.destination.getWorld().getName(),
+                link.destination.getBlockX(), link.destination.getBlockY(), link.destination.getBlockZ(),
+                travelTime, price, name, "", "", "", "");
+        teleporters.put(sourceKey, srcTeleporter);
+
+        // Destination pad -> source (bidirectional)
+        Teleporter destTeleporter = new Teleporter(
+                link.source.getWorld().getName(),
+                link.source.getBlockX(), link.source.getBlockY(), link.source.getBlockZ(),
+                travelTime, price, name, "", "", "", "");
+        teleporters.put(destKey, destTeleporter);
+
+        setupWallSign(link.source, player, srcTeleporter);
+        setupWallSign(link.destination, player, destTeleporter);
 
         saveTeleporters();
 
