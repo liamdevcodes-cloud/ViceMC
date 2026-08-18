@@ -22,7 +22,7 @@ public final class NotificationServiceImpl implements NotificationService {
 
     @Override
     public void action(Player player, String message) {
-        player.sendMessage(Text.color(message));
+        player.sendActionBar(Text.color(message));
     }
 
     @Override

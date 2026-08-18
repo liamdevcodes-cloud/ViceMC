@@ -5,6 +5,7 @@ import net.vicemc.api.service.BuildProtectionService;
 import net.vicemc.api.service.CommandContext;
 import net.vicemc.api.service.CommandService;
 import net.vicemc.api.service.CommandSpec;
+import net.vicemc.api.service.DebugService;
 import net.vicemc.api.service.EconomyService;
 import net.vicemc.api.service.EventBus;
 import net.vicemc.api.service.GUIService;
@@ -14,6 +15,7 @@ import net.vicemc.api.service.StorageService;
 import net.vicemc.core.listener.BuildProtectionListener;
 import net.vicemc.core.service.impl.BuildProtectionServiceImpl;
 import net.vicemc.core.service.impl.CommandServiceImpl;
+import net.vicemc.core.service.impl.DebugServiceImpl;
 import net.vicemc.core.service.impl.EconomyServiceImpl;
 import net.vicemc.core.service.impl.EventBusImpl;
 import net.vicemc.core.service.impl.GUIServiceImpl;
@@ -50,6 +52,7 @@ public final class ViceCore extends JavaPlugin {
     private NotificationServiceImpl notifications;
     private EventBusImpl events;
     private BuildProtectionServiceImpl buildProtection;
+    private DebugServiceImpl debug;
     private ModuleRegistry moduleRegistry;
     private final Map<UUID, Location[]> selections = new HashMap<>();
 
@@ -72,6 +75,7 @@ public final class ViceCore extends JavaPlugin {
         this.notifications = new NotificationServiceImpl();
         this.events = new EventBusImpl();
         this.buildProtection = new BuildProtectionServiceImpl(storage);
+        this.debug = new DebugServiceImpl();
         this.moduleRegistry = new ModuleRegistry();
 
         getServer().getPluginManager().registerEvents(new AccountListener(economy), this);
@@ -115,6 +119,15 @@ public final class ViceCore extends JavaPlugin {
                 .tabulates((c, a) -> a.size() == 1 ? List.of("on", "off") : List.of())
                 .build());
 
+        commands.register(this, CommandSpec.builder()
+                .name("admindebug")
+                .aliases("debug")
+                .permission("vicemc.admin")
+                .description("Admin debug: simulate system events")
+                .executes(this::admindebug)
+                .tabulates(this::admindebugTab)
+                .build());
+
         getLogger().info("ViceCore enabled. Awaiting modules...");
     }
 
@@ -155,6 +168,10 @@ public final class ViceCore extends JavaPlugin {
 
     public EventBus events() {
         return events;
+    }
+
+    public DebugService debug() {
+        return debug;
     }
 
     public BuildProtectionService buildProtection() {
@@ -314,5 +331,41 @@ public final class ViceCore extends JavaPlugin {
     private void reloadRegions(CommandContext c) {
         regions.reload();
         c.msg("&aReloaded regions.yml: " + regions().all().size() + " regions loaded.");
+    }
+
+    // --- /admindebug ------------------------------------------------------
+
+    /**
+     * Admin debug dispatcher. Modules register fake actions via
+     * {@link DebugService}; this command routes to them:
+     * /admindebug <system> <action> [args...]
+     */
+    private void admindebug(CommandContext c) {
+        String system = c.arg(0);
+        String action = c.arg(1);
+        if (system.isEmpty()) {
+            c.msg("&6Debug systems: &f" + String.join(", ", debug.systems()));
+            c.msg("&7Usage: &e/admindebug <system> <action> [args...]");
+            return;
+        }
+        if (!debug.systems().contains(system.toLowerCase())) {
+            c.error("Unknown system '" + system + "'. Available: " + String.join(", ", debug.systems()));
+            return;
+        }
+        if (action.isEmpty()) {
+            c.msg("&6" + system + " debug actions: &f" + String.join(", ", debug.actions(system)));
+            c.msg("&7Usage: &e/admindebug " + system + " <action> [args...]");
+            return;
+        }
+        if (!debug.execute(system, action, c)) {
+            c.error("Unknown action '" + action + "' for system '" + system + "'. Available: " + String.join(", ", debug.actions(system)));
+        }
+    }
+
+    private List<String> admindebugTab(CommandContext c, List<String> a) {
+        if (a.size() <= 1) return List.copyOf(debug.systems());
+        String system = a.get(0);
+        if (a.size() == 2) return debug.actions(system);
+        return debug.tab(system, a.get(1), c, a);
     }
 }

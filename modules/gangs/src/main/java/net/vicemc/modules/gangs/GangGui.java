@@ -66,15 +66,19 @@ public final class GangGui {
                     "&7Join a faction to fight for territory");
         } else {
             Material mat = Material.matchMaterial(gang.drugMaterial);
+            var lore = new java.util.ArrayList<String>();
+            lore.add("&7Leader: &f" + (leader != null ? nameOf(leader) : "&7none"));
+            lore.add("&7Lieutenants: &f" + manager.lieutenantsOf(gangId).size());
+            lore.add("&7Members: &f" + manager.memberCount(gangId) + " &7(max diff: 4)");
+            lore.add("&7Territories: &f" + manager.territoriesControlled(gangId) + " &7of &f" + manager.territories().size());
+            for (Territory t : manager.territories()) {
+                if (gangId.equals(t.owner)) lore.add("  &a\u2713 &f" + t.name);
+            }
+            lore.add("&7Bank: &a$" + String.format("%.2f", manager.bankBalance(gangId)));
+            lore.add(module.isWarActive() ? "&4\u2694 WAR ACTIVE" : "&7War: inactive");
             status = ItemBuilder.of(mat == null ? Material.SUGAR : mat)
                     .name("&e" + gang.name)
-                    .lore(
-                            "&7Leader: &f" + (leader != null ? nameOf(leader) : "&7none"),
-                            "&7Lieutenants: &f" + manager.lieutenantsOf(gangId).size(),
-                            "&7Members: &f" + manager.memberCount(gangId) + " &7(max diff: 4)",
-                            "&7Territories: &f" + manager.territoriesControlled(gangId) + " &7of &f" + manager.territories().size(),
-                            "&7Bank: &a$" + String.format("%.2f", manager.bankBalance(gangId)),
-                            module.isWarActive() ? "&4⚔ WAR ACTIVE" : "&7War: inactive")
+                    .lore(lore.toArray(new String[0]))
                     .build();
         }
         builder.item(GuiKit.STATUS, status, GuiKit.NONE);

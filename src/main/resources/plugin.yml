@@ -14,6 +14,9 @@ commands:
   buildermode:
     aliases: [bm, build]
     permission: vicemc.buildermode.use
+  admindebug:
+    aliases: [debug]
+    permission: vicemc.admin
 permissions:
   vicemc.buildermode.use:
     description: Toggle builder mode to build on the protected map.

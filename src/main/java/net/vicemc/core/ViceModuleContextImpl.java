@@ -3,6 +3,7 @@ package net.vicemc.core;
 import net.vicemc.api.ViceModuleContext;
 import net.vicemc.api.service.BuildProtectionService;
 import net.vicemc.api.service.CommandService;
+import net.vicemc.api.service.DebugService;
 import net.vicemc.api.service.EconomyService;
 import net.vicemc.api.service.EventBus;
 import net.vicemc.api.service.GUIService;
@@ -73,6 +74,11 @@ public final class ViceModuleContextImpl implements ViceModuleContext {
     @Override
     public EventBus events() {
         return core.events();
+    }
+
+    @Override
+    public DebugService debug() {
+        return core.debug();
     }
 
     @Override

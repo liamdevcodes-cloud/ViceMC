@@ -2,6 +2,7 @@ package net.vicemc.api;
 
 import net.vicemc.api.service.BuildProtectionService;
 import net.vicemc.api.service.CommandService;
+import net.vicemc.api.service.DebugService;
 import net.vicemc.api.service.EconomyService;
 import net.vicemc.api.service.EventBus;
 import net.vicemc.api.service.GUIService;
@@ -38,6 +39,12 @@ public interface ViceModuleContext {
     NotificationService notifications();
 
     EventBus events();
+
+    /**
+     * Admin debug system. Modules register fake actions so admins can simulate
+     * events (win/lose/capture/etc.) without waiting for real conditions.
+     */
+    DebugService debug();
 
     /**
      * Map-wide build protection and the block claims modules register into it.

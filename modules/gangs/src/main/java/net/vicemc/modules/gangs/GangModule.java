@@ -4,8 +4,10 @@ import net.vicemc.api.ViceModule;
 import net.vicemc.api.ViceModuleContext;
 import net.vicemc.api.service.CommandContext;
 import net.vicemc.api.service.CommandSpec;
+import net.vicemc.api.service.DebugService;
 import net.vicemc.api.util.ItemBuilder;
 import net.vicemc.api.util.Json;
+import net.vicemc.api.util.Text;
 import net.vicemc.api.util.YamlConfig;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -23,14 +25,18 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
+import net.kyori.adventure.bossbar.BossBar;
+import net.kyori.adventure.title.Title;
 
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -62,6 +68,7 @@ public final class GangModule implements ViceModule, Listener {
     private boolean warActive = false;
     private final Map<String, Set<UUID>> inside = new ConcurrentHashMap<>();
     private final Map<String, String> lastStatusKey = new ConcurrentHashMap<>();
+    private final Map<UUID, BossBar> captureBars = new ConcurrentHashMap<>();
 
     @Override public String id() { return "gangs"; }
     @Override public String displayName() { return "Vice Gangs"; }
@@ -84,6 +91,7 @@ public final class GangModule implements ViceModule, Listener {
         if (resolved != -1) lastResolvedWeek = resolved;
 
         registerCommands();
+        registerDebug();
         scheduleElections();
         scheduleTerritoryTick();
         scheduleWarWindow();
@@ -149,6 +157,58 @@ public final class GangModule implements ViceModule, Listener {
                 .executes(this::vote)
                 .tabulates((c, a) -> a.size() <= 1 ? gangMemberNames(c) : List.of())
                 .build());
+    }
+
+    // ========================= DEBUG (ADMIN) =========================
+    // Simulate gang events without waiting for real conditions:
+    //   /admindebug gang fakewin <territory> [gang]
+    //   /admindebug gang fakecapture <territory> <gang> <percent>
+    //   /admindebug gang fakewar [on|off]
+    //   /admindebug gang reset <territory>
+    // Arg layout: c.arg(0)=system, c.arg(1)=action, c.arg(2)+ = real args.
+
+    private void registerDebug() {
+        DebugService dbg = ctx.debug();
+        dbg.register("gang", "fakewin", c -> {
+            String tid = c.arg(2);
+            String gangId = c.arg(3, "north").toLowerCase();
+            Territory t = manager.territory(tid);
+            if (t == null) { c.error("Unknown territory: " + String.join(", ", territoryIds())); return; }
+            if (manager.gang(gangId) == null) { c.error("Invalid gang. Use: north, south"); return; }
+            capture(t, gangId);
+            c.msg("&a[debug] Faked capture: &f" + t.name + " &a-> &f" + gangName(gangId) + "&a.");
+        });
+        dbg.register("gang", "fakecapture", c -> {
+            String tid = c.arg(2);
+            String gangId = c.arg(3, "north").toLowerCase();
+            int pct = c.argInt(4, 50);
+            Territory t = manager.territory(tid);
+            if (t == null) { c.error("Unknown territory: " + String.join(", ", territoryIds())); return; }
+            if (manager.gang(gangId) == null) { c.error("Invalid gang. Use: north, south"); return; }
+            manager.updateProgress(tid, Math.max(0, Math.min(100, pct)), gangId);
+            c.msg("&a[debug] Set &f" + t.name + " &acapture to &f" + Math.max(0, Math.min(100, pct)) + "% &aby &f" + gangName(gangId) + "&a.");
+        });
+        dbg.register("gang", "fakewar", c -> {
+            String state = c.arg(2, "on");
+            if (state.equalsIgnoreCase("off")) {
+                adminStopWar(c);
+                c.msg("&a[debug] War off.");
+            } else {
+                adminStartWar(c);
+                c.msg("&a[debug] War on.");
+            }
+        });
+        dbg.register("gang", "reset", c -> {
+            String tid = c.arg(2);
+            Territory t = manager.territory(tid);
+            if (t == null) { c.error("Unknown territory: " + String.join(", ", territoryIds())); return; }
+            manager.captureTerritory(tid, "");
+            c.msg("&a[debug] Reset &f" + t.name + " &ato neutral.");
+        });
+        dbg.registerTab("gang", "fakewin", (c, a) -> a.size() <= 3 ? territoryIds() : List.of("north", "south"));
+        dbg.registerTab("gang", "fakecapture", (c, a) -> a.size() <= 3 ? territoryIds() : (a.size() == 4 ? List.of("north", "south") : List.of("<percent>")));
+        dbg.registerTab("gang", "fakewar", (c, a) -> List.of("on", "off"));
+        dbg.registerTab("gang", "reset", (c, a) -> territoryIds());
     }
 
     // ========================= /gang DISPATCH =========================
@@ -738,6 +798,7 @@ public final class GangModule implements ViceModule, Listener {
     }
 
     private void tickTerritories() {
+        Set<UUID> seen = new HashSet<>();
         for (Territory t : manager.territories()) {
             Map<String, Integer> countByGang = new HashMap<>();
             List<Player> insidePlayers = new ArrayList<>();
@@ -768,14 +829,81 @@ public final class GangModule implements ViceModule, Listener {
                 if (t.progress > 0) manager.updateProgress(t.id, t.progress - rate, "");
             }
             notifyTerritoryStatus(t, insidePlayers);
+            updateCaptureBars(t, insidePlayers, countByGang, seen);
         }
+        // Remove bars for players no longer inside any territory
+        for (UUID uuid : new ArrayList<>(captureBars.keySet())) {
+            if (seen.contains(uuid)) continue;
+            BossBar bar = captureBars.remove(uuid);
+            if (bar != null) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null && p.isOnline()) p.hideBossBar(bar);
+            }
+        }
+    }
+
+    private void updateCaptureBars(Territory t, List<Player> insidePlayers, Map<String, Integer> countByGang, Set<UUID> seen) {
+        for (Player p : insidePlayers) {
+            seen.add(p.getUniqueId());
+            BossBar bar = captureBars.computeIfAbsent(p.getUniqueId(), k -> BossBar.bossBar(Text.color(""), 0f, BossBar.Color.WHITE, BossBar.Overlay.NOTCHED_10));
+            p.showBossBar(bar);
+            bar.progress((float) Math.max(0.0, Math.min(1.0, t.progress / 100.0)));
+            String title = "&6" + t.name;
+            BossBar.Color color = BossBar.Color.WHITE;
+            if (countByGang.size() > 1) {
+                title += " &c&lCONTESTED";
+                color = BossBar.Color.RED;
+            } else if (countByGang.size() == 1) {
+                String gangId = countByGang.keySet().iterator().next();
+                if (gangId.equals(t.owner)) {
+                    title += " &7held by &f" + gangName(gangId);
+                    color = BossBar.Color.BLUE;
+                } else {
+                    title += " &7capturing: &f" + gangName(gangId) + " &b" + t.progress + "%";
+                    color = BossBar.Color.GREEN;
+                }
+            } else if (t.progress > 0) {
+                title += " &c&lDECAY";
+                color = BossBar.Color.RED;
+            } else {
+                title += " &7neutral";
+            }
+            if (warActive) title += " &4[WAR]";
+            bar.name(Text.color(title));
+            bar.color(color);
+        }
+    }
+
+    private String gangName(String gangId) {
+        Gang g = manager.gang(gangId);
+        return g == null ? gangId : g.name;
     }
 
     private void capture(Territory t, String gangId) {
         manager.captureTerritory(t.id, gangId);
-        Gang g = manager.gang(gangId);
-        String name = g == null ? gangId : g.name;
-        ctx.notifications().broadcast("&6" + t.name + " &7captured by &f" + name + "&7!");
+        String name = gangName(gangId);
+        ctx.notifications().broadcast("&6&l" + t.name + " &7&lhas been CAPTURED by &f&l" + name + "&7&l!");
+        // Win feedback: title to all winning gang members
+        for (UUID uuid : manager.membersOf(gangId)) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                p.showTitle(net.kyori.adventure.title.Title.title(
+                        Text.color("&a&lTERRITORY CAPTURED!"),
+                        Text.color("&f" + t.name + " &7-> &f" + name),
+                        net.kyori.adventure.title.Title.Times.times(
+                                java.time.Duration.ofMillis(500), java.time.Duration.ofMillis(3000), java.time.Duration.ofMillis(500))));
+            }
+        }
+        // Bossbar flash green for everyone still inside the zone
+        for (UUID uuid : inside.getOrDefault(t.id, Set.of())) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p == null || !p.isOnline()) continue;
+            BossBar bar = captureBars.computeIfAbsent(uuid, k -> BossBar.bossBar(Text.color(""), 0f, BossBar.Color.GREEN, BossBar.Overlay.NOTCHED_10));
+            p.showBossBar(bar);
+            bar.name(Text.color("&a&lCAPTURED! &6" + t.name + " &7-> &f" + name));
+            bar.progress(1f);
+            bar.color(BossBar.Color.GREEN);
+        }
         if (warActive) distributeRewards(t, gangId);
         ctx.events().publish("gangs.territory", Map.of("zone", t.id, "gang", gangId, "war", String.valueOf(warActive)));
     }
@@ -883,6 +1011,8 @@ public final class GangModule implements ViceModule, Listener {
     public void onQuit(PlayerQuitEvent e) {
         UUID uuid = e.getPlayer().getUniqueId();
         for (Set<UUID> set : inside.values()) set.remove(uuid);
+        BossBar bar = captureBars.remove(uuid);
+        if (bar != null) e.getPlayer().hideBossBar(bar);
     }
 
     private String statusLine(Territory t) {
