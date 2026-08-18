@@ -165,7 +165,7 @@ public final class GangManager {
             t.id = id;
             t.name = cfg.getString("territories." + id + ".name", id);
             t.regionTag = cfg.getString("territories." + id + ".region-tag", "gangzone:" + id);
-            t.captureSeconds = Math.max(10, cfg.getInt("territories." + id + ".capture-seconds", 60));
+            t.captureSeconds = Math.max(10, cfg.getInt("territories." + id + ".capture-seconds", 300));
             t.rewardMoney = cfg.getDouble("territories." + id + ".reward-money", 0);
             t.weeklyRewardMoney = cfg.getDouble("territories." + id + ".weekly-reward-money", 0);
 

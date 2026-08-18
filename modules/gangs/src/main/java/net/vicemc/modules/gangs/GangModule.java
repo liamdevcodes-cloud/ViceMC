@@ -5,6 +5,7 @@ import net.vicemc.api.ViceModuleContext;
 import net.vicemc.api.service.CommandContext;
 import net.vicemc.api.service.CommandSpec;
 import net.vicemc.api.util.ItemBuilder;
+import net.vicemc.api.util.Json;
 import net.vicemc.api.util.YamlConfig;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -292,7 +293,7 @@ public final class GangModule implements ViceModule, Listener {
         String id = c.arg(2).toLowerCase();
         if (manager.territory(id) != null) { c.error("Territory '" + id + "' already exists."); return; }
         String name = c.arg(3, "&e" + id);
-        int capture = c.argInt(4, 60);
+        int capture = c.argInt(4, 300);
         double reward = c.argDouble(5, 0);
         double weekly = c.argDouble(6, 0);
         Territory t = manager.createTerritory(id, name, "gangzone:" + id, capture, reward, weekly);
@@ -319,6 +320,27 @@ public final class GangModule implements ViceModule, Listener {
         String tag = c.arg(3);
         if (manager.setTerritoryRegion(id, tag)) {
             c.msg("&aSet region tag for &f" + id + " &ato &f" + tag);
+            // Verify the region actually exists in either region system
+            boolean coreFound = !ctx.regions().byTag(tag).isEmpty();
+            boolean polygonFound = false;
+            for (var entry : ctx.storage().moduleDataAll("regions").entrySet()) {
+                if (!entry.getKey().startsWith("region:")) continue;
+                try {
+                    PolygonRegionDto r = Json.fromJson(entry.getValue(), PolygonRegionDto.class);
+                    if (r != null && (tag.equalsIgnoreCase(r.id) || tag.equalsIgnoreCase(r.name))) {
+                        polygonFound = true;
+                        break;
+                    }
+                } catch (RuntimeException ignored) {
+                }
+            }
+            if (!coreFound && !polygonFound) {
+                c.error("WARNING: No region found with tag/name '" + tag + "'.");
+                c.error("  If you use ViceRegions: /region create <id> ... then setregion <territory> <id>");
+                c.error("  If you use core regions: /vregion create <id> " + tag);
+            } else {
+                c.msg("&aFound region '" + tag + "' (" + (polygonFound ? "ViceRegions" : "core") + ").");
+            }
         } else {
             c.error("Territory '" + id + "' not found.");
         }
@@ -728,39 +750,22 @@ public final class GangModule implements ViceModule, Listener {
                 if (g != null) countByGang.merge(g, 1, Integer::sum);
             }
             int rate = Math.max(1, (int) Math.ceil(100.0 * captureTickSeconds / t.captureSeconds));
-            if (insidePlayers.isEmpty()) {
-                if (t.progress > 0) manager.updateProgress(t.id, t.progress - rate, "");
-                notifyTerritoryStatus(t, insidePlayers);
-                continue;
-            }
-            if (t.owner.isEmpty()) {
-                Map.Entry<String, Integer> top = null;
-                boolean tie = false;
-                for (var e : countByGang.entrySet()) {
-                    if (top == null || e.getValue() > top.getValue()) { top = e; tie = false; }
-                    else if (e.getValue() == top.getValue()) tie = true;
-                }
-                if (top == null || tie) {
-                    if (t.progress > 0) manager.updateProgress(t.id, t.progress - rate, "");
+
+            // Capture only progresses when EXACTLY ONE gang is present (uncontested).
+            // Any enemy gang in the zone = contested -> progress decays.
+            if (countByGang.size() == 1) {
+                String gangId = countByGang.keySet().iterator().next();
+                if (gangId.equals(t.owner)) {
+                    // Owner defending own zone - nothing to capture
+                    if (t.progress > 0) manager.updateProgress(t.id, 0, "");
                 } else {
-                    int next = t.progressOwner.equals(top.getKey()) ? t.progress + rate : rate;
-                    if (next >= 100) capture(t, top.getKey());
-                    else manager.updateProgress(t.id, next, top.getKey());
+                    int next = t.progressOwner.equals(gangId) ? t.progress + rate : rate;
+                    if (next >= 100) capture(t, gangId);
+                    else manager.updateProgress(t.id, next, gangId);
                 }
             } else {
-                String attGang = "";
-                int atk = 0;
-                for (var e : countByGang.entrySet()) {
-                    if (!e.getKey().equals(t.owner) && e.getValue() > atk) { atk = e.getValue(); attGang = e.getKey(); }
-                }
-                int def = countByGang.getOrDefault(t.owner, 0);
-                if (atk > 0 && atk > def) {
-                    int next = t.progressOwner.equals(attGang) ? t.progress + rate : rate;
-                    if (next >= 100) capture(t, attGang);
-                    else manager.updateProgress(t.id, next, attGang);
-                } else if (t.progress > 0) {
-                    manager.updateProgress(t.id, t.progress - rate, "");
-                }
+                // Empty zone or multiple gangs contesting - progress decays
+                if (t.progress > 0) manager.updateProgress(t.id, t.progress - rate, "");
             }
             notifyTerritoryStatus(t, insidePlayers);
         }
@@ -795,7 +800,7 @@ public final class GangModule implements ViceModule, Listener {
 
     private void notifyTerritoryStatus(Territory t, List<Player> insidePlayers) {
         String line = statusLine(t);
-        String key = t.owner + "|" + t.progressOwner + "|" + (t.progress / 10);
+        String key = t.owner + "|" + t.progressOwner + "|" + (t.progress / 5);
         if (key.equals(lastStatusKey.get(t.id))) return;
         lastStatusKey.put(t.id, key);
         for (Player p : insidePlayers) ctx.notifications().action(p, line);
@@ -806,8 +811,8 @@ public final class GangModule implements ViceModule, Listener {
         if (!e.hasChangedBlock()) return;
         UUID uuid = e.getPlayer().getUniqueId();
         for (Territory t : manager.territories()) {
-            boolean was = ctx.regions().isInside(e.getFrom(), t.regionTag);
-            boolean now = ctx.regions().isInside(e.getTo(), t.regionTag);
+            boolean was = isInsideTerritory(e.getFrom(), t);
+            boolean now = isInsideTerritory(e.getTo(), t);
             if (was == now) continue;
             Set<UUID> set = inside.computeIfAbsent(t.id, k -> java.util.Collections.newSetFromMap(new ConcurrentHashMap<UUID, Boolean>()));
             if (now) set.add(uuid); else set.remove(uuid);
@@ -818,8 +823,59 @@ public final class GangModule implements ViceModule, Listener {
     public void onJoin(PlayerJoinEvent e) {
         Location loc = e.getPlayer().getLocation();
         for (Territory t : manager.territories()) {
-            if (ctx.regions().isInside(loc, t.regionTag))
+            if (isInsideTerritory(loc, t))
                 inside.computeIfAbsent(t.id, k -> java.util.Collections.newSetFromMap(new ConcurrentHashMap<UUID, Boolean>())).add(e.getPlayer().getUniqueId());
+        }
+    }
+
+    /**
+     * True if the location is inside the territory's capture zone. Checks BOTH
+     * region systems: core cuboid regions (ctx.regions()) and ViceRegions module
+     * polygon regions (stored in shared storage under module "regions").
+     */
+    private boolean isInsideTerritory(Location loc, Territory t) {
+        // 1) Core cuboid regions (/vregion) - tag match
+        if (ctx.regions().isInside(loc, t.regionTag)) return true;
+
+        // 2) ViceRegions module polygon regions (/region) - match by id or name
+        for (var entry : ctx.storage().moduleDataAll("regions").entrySet()) {
+            if (!entry.getKey().startsWith("region:")) continue;
+            try {
+                PolygonRegionDto r = Json.fromJson(entry.getValue(), PolygonRegionDto.class);
+                if (r == null || r.id == null || r.vertices == null || r.vertices.size() < 3) continue;
+                if (!t.regionTag.equalsIgnoreCase(r.id) && !t.regionTag.equalsIgnoreCase(r.name)) continue;
+                if (r.contains(loc)) return true;
+            } catch (RuntimeException ignored) {
+            }
+        }
+        return false;
+    }
+
+    /** Minimal mirror of the ViceRegions module's RegionPolygon for containment checks. */
+    static final class PolygonRegionDto {
+        String id;
+        String name;
+        String world;
+        List<int[]> vertices;
+        int minY;
+        int maxY;
+
+        boolean contains(Location loc) {
+            if (loc.getWorld() == null || !loc.getWorld().getName().equalsIgnoreCase(world)) return false;
+            int y = loc.getBlockY();
+            if (y < minY || y > maxY) return false;
+            int x = loc.getBlockX(), z = loc.getBlockZ();
+            boolean inside = false;
+            int n = vertices.size();
+            for (int i = 0, j = n - 1; i < n; j = i++) {
+                int[] a = vertices.get(i);
+                int[] b = vertices.get(j);
+                if ((a[1] > z) != (b[1] > z)
+                        && x < (double) (b[0] - a[0]) * (z - a[1]) / (double) (b[1] - a[1]) + a[0]) {
+                    inside = !inside;
+                }
+            }
+            return inside;
         }
     }
 
@@ -830,7 +886,8 @@ public final class GangModule implements ViceModule, Listener {
     }
 
     private String statusLine(Territory t) {
-        String owner = t.owner.isEmpty() ? "&7Neutral" : "&f" + manager.gang(t.owner).name;
+        Gang ownerGang = t.owner.isEmpty() ? null : manager.gang(t.owner);
+        String owner = ownerGang == null ? "&7Neutral" : "&f" + ownerGang.name;
         StringBuilder sb = new StringBuilder("&7[&e").append(t.name).append("&7] &f").append(owner);
         if (!t.progressOwner.isEmpty() && !t.progressOwner.equals(t.owner)) {
             Gang g = manager.gang(t.progressOwner);

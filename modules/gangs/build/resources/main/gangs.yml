@@ -56,6 +56,11 @@ weekly-drugs: 5
 # ============================================================
 # Each territory needs a ViceRegion created with:
 #   /vregion pos1 + pos2 + create <id> <region-tag>
+# (Or a ViceRegions module polygon region - setregion matches by id/name.)
+#
+# Capture takes capture-seconds of UNCONTESTED holding: the zone must
+# contain only ONE gang (the attacker). Any enemy gang present blocks
+# progress and decays it. Default: 300s = 5 minutes.
 #
 # Admins can also create territories at runtime:
 #   /gang admin createterritory <id> [name] [captureSeconds] [rewardMoney] [weeklyReward]
@@ -71,7 +76,7 @@ territories:
   market-strip:
     name: "&eMarket Strip"
     region-tag: "gangzone:market"
-    capture-seconds: 60
+    capture-seconds: 300
     reward-money: 500
     weekly-reward-money: 100
     # Custom reward items given on capture (during war).
@@ -95,7 +100,7 @@ territories:
   factory-zone:
     name: "&7Factory Zone"
     region-tag: "gangzone:factory"
-    capture-seconds: 90
+    capture-seconds: 300
     reward-money: 750
     weekly-reward-money: 200
     reward-items:
