@@ -103,11 +103,74 @@ public final class GangModule implements ViceModule, Listener {
 
     private void warnMissingRegions() {
         for (Territory t : manager.territories()) {
-            if (ctx.regions().byTag(t.regionTag).isEmpty()) {
-                ctx.logger().warning("Territory '" + t.id + "' has no region tagged '"
-                        + t.regionTag + "'. Use /gang admin setregion " + t.id + " <tag> or create one with /vregion.");
+            if (ctx.regions().byTag(t.regionTag).isEmpty() && !hasMatchingPolygon(t)) {
+                ctx.logger().warning("Territory '" + t.id + "' has no core region tagged '"
+                        + t.regionTag + "' and no matching polygon region. "
+                        + "Use /gang admin setregion " + t.id + " <tag>, create one with /vregion, "
+                        + "or create a /region polygon whose id/name contains '" + tagTail(t.regionTag) + "'.");
             }
         }
+    }
+
+    /** Last path segment of a tag (e.g. "gangzone:market" -> "market"). */
+    private static String tagTail(String tag) {
+        if (tag == null) return "";
+        int colon = tag.lastIndexOf(':');
+        return colon >= 0 ? tag.substring(colon + 1) : tag;
+    }
+
+    /** Normalizes a string for fuzzy matching: lowercase, strip color codes, keep alnum. */
+    private static String norm(String s) {
+        if (s == null) return "";
+        return s.toLowerCase()
+                .replaceAll("\u00a7[0-9a-fk-orx]", "")
+                .replaceAll("&[0-9a-fk-orx]", "")
+                .replaceAll("[^a-z0-9]", "");
+    }
+
+    /**
+     * True if the polygon region maps to the territory by ANY naming convention:
+     * exact regionTag, the part after the last ':' of the tag, the territory id,
+     * or the territory display name - compared (case/color-insensitive) against the
+     * polygon's id or name, with a containment fallback for prefixes/suffixes.
+     */
+    private static boolean polygonMatchesTerritory(PolygonRegionDto r, Territory t) {
+        List<String> wants = new ArrayList<>();
+        wants.add(t.regionTag);
+        wants.add(tagTail(t.regionTag));
+        wants.add(t.id);
+        wants.add(t.name);
+        List<String> have = new ArrayList<>();
+        have.add(r.id);
+        have.add(r.name);
+        for (String w : wants) {
+            if (w == null) continue;
+            String wn = norm(w);
+            if (wn.isEmpty()) continue;
+            for (String h : have) {
+                if (h == null) continue;
+                String hn = norm(h);
+                if (hn.isEmpty()) continue;
+                if (wn.equals(hn)) return true;
+                // Containment fallback: "market-strip" matches "market", "capture-zone" matches "zone".
+                if (wn.length() >= 4 && hn.length() >= 4 && (wn.contains(hn) || hn.contains(wn))) return true;
+            }
+        }
+        return false;
+    }
+
+    /** True if ANY stored polygon region fuzzy-matches the territory (no location check). */
+    private boolean hasMatchingPolygon(Territory t) {
+        for (var entry : ctx.storage().moduleDataAll("regions").entrySet()) {
+            if (!entry.getKey().startsWith("region:")) continue;
+            try {
+                PolygonRegionDto r = Json.fromJson(entry.getValue(), PolygonRegionDto.class);
+                if (r == null || r.id == null || r.vertices == null || r.vertices.size() < 3) continue;
+                if (polygonMatchesTerritory(r, t)) return true;
+            } catch (RuntimeException ignored) {
+            }
+        }
+        return false;
     }
 
     @Override
@@ -245,6 +308,11 @@ public final class GangModule implements ViceModule, Listener {
                     if (r.contains(loc)) {
                         poly = true;
                         c.msg("&7Polygon region: &f" + r.id + " &7name: &f" + r.name + " &7world: &f" + r.world);
+                        for (Territory t : manager.territories()) {
+                            if (polygonMatchesTerritory(r, t)) {
+                                c.msg("  &a-> matches territory &f" + t.id + " &7(" + t.name + ")");
+                            }
+                        }
                     }
                 } catch (RuntimeException ignored) {
                 }
@@ -436,15 +504,19 @@ public final class GangModule implements ViceModule, Listener {
         String tag = c.arg(3);
         if (manager.setTerritoryRegion(id, tag)) {
             c.msg("&aSet region tag for &f" + id + " &ato &f" + tag);
-            // Verify the region actually exists in either region system
+            // Verify the region actually exists in either region system (fuzzy for polygons)
             boolean coreFound = !ctx.regions().byTag(tag).isEmpty();
             boolean polygonFound = false;
+            String polyName = "";
             for (var entry : ctx.storage().moduleDataAll("regions").entrySet()) {
                 if (!entry.getKey().startsWith("region:")) continue;
                 try {
                     PolygonRegionDto r = Json.fromJson(entry.getValue(), PolygonRegionDto.class);
-                    if (r != null && (tag.equalsIgnoreCase(r.id) || tag.equalsIgnoreCase(r.name))) {
+                    if (r == null || r.id == null || r.vertices == null || r.vertices.size() < 3) continue;
+                    if (tag.equalsIgnoreCase(r.id) || tag.equalsIgnoreCase(r.name)
+                            || tagTail(tag).equalsIgnoreCase(r.id) || tagTail(tag).equalsIgnoreCase(r.name)) {
                         polygonFound = true;
+                        polyName = r.name == null ? r.id : r.name;
                         break;
                     }
                 } catch (RuntimeException ignored) {
@@ -455,7 +527,7 @@ public final class GangModule implements ViceModule, Listener {
                 c.error("  If you use ViceRegions: /region create <id> ... then setregion <territory> <id>");
                 c.error("  If you use core regions: /vregion create <id> " + tag);
             } else {
-                c.msg("&aFound region '" + tag + "' (" + (polygonFound ? "ViceRegions" : "core") + ").");
+                c.msg("&aFound region '" + tag + "' (" + (polygonFound ? "ViceRegions: " + polyName : "core") + ").");
             }
         } else {
             c.error("Territory '" + id + "' not found.");
@@ -1016,24 +1088,20 @@ public final class GangModule implements ViceModule, Listener {
      * True if the location is inside the territory's capture zone. Checks BOTH
      * region systems: core cuboid regions (ctx.regions()) and ViceRegions module
      * polygon regions (stored in shared storage under module "regions").
+     * Polygon matching is fuzzy so ANY naming convention works (see
+     * {@link #polygonMatchesTerritory}).
      */
     private boolean isInsideTerritory(Location loc, Territory t) {
         // 1) Core cuboid regions (/vregion) - tag match
         if (ctx.regions().isInside(loc, t.regionTag)) return true;
 
-        // 2) ViceRegions module polygon regions (/region) - match by id or name.
-        // Polygon ids cannot contain colons, so also match the part after the
-        // last ':' of the tag (e.g. tag "gangzone:market" matches id "market").
-        String want = t.regionTag;
-        int colon = want.lastIndexOf(':');
-        String wantTail = colon >= 0 ? want.substring(colon + 1) : want;
+        // 2) ViceRegions module polygon regions (/region) - fuzzy id/name match
         for (var entry : ctx.storage().moduleDataAll("regions").entrySet()) {
             if (!entry.getKey().startsWith("region:")) continue;
             try {
                 PolygonRegionDto r = Json.fromJson(entry.getValue(), PolygonRegionDto.class);
                 if (r == null || r.id == null || r.vertices == null || r.vertices.size() < 3) continue;
-                if (!want.equalsIgnoreCase(r.id) && !want.equalsIgnoreCase(r.name)
-                        && !wantTail.equalsIgnoreCase(r.id) && !wantTail.equalsIgnoreCase(r.name)) continue;
+                if (!polygonMatchesTerritory(r, t)) continue;
                 if (r.contains(loc)) return true;
             } catch (RuntimeException ignored) {
             }
