@@ -2,6 +2,7 @@ package net.vicemc.modules.gangs;
 
 import net.vicemc.api.ViceModule;
 import net.vicemc.api.ViceModuleContext;
+import net.vicemc.api.model.Region;
 import net.vicemc.api.service.CommandContext;
 import net.vicemc.api.service.CommandSpec;
 import net.vicemc.api.service.DebugService;
@@ -225,10 +226,45 @@ public final class GangModule implements ViceModule, Listener {
             manager.captureTerritory(t.id, "");
             c.msg("&a[debug] Reset &f" + t.name + " &ato neutral.");
         });
+        dbg.register("gang", "here", c -> {
+            if (!c.isPlayer()) { c.error("Player only."); return; }
+            Location loc = c.player().getLocation();
+            c.msg("&7Location: &f" + loc.getWorld().getName() + " " + loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ());
+            Set<Region> at = ctx.regions().at(loc);
+            if (at.isEmpty()) {
+                c.msg("&7Core regions here: &fnone");
+            } else {
+                for (Region r : at) c.msg("&7Core region: &f" + r.id() + " &7tags: &f" + r.tags());
+            }
+            boolean poly = false;
+            for (var entry : ctx.storage().moduleDataAll("regions").entrySet()) {
+                if (!entry.getKey().startsWith("region:")) continue;
+                try {
+                    PolygonRegionDto r = Json.fromJson(entry.getValue(), PolygonRegionDto.class);
+                    if (r == null || r.vertices == null || r.vertices.size() < 3) continue;
+                    if (r.contains(loc)) {
+                        poly = true;
+                        c.msg("&7Polygon region: &f" + r.id + " &7name: &f" + r.name + " &7world: &f" + r.world);
+                    }
+                } catch (RuntimeException ignored) {
+                }
+            }
+            if (!poly) c.msg("&7Polygon regions here: &fnone");
+            List<Territory> matched = new ArrayList<>();
+            for (Territory t : manager.territories()) {
+                if (isInsideTerritory(loc, t)) matched.add(t);
+            }
+            if (matched.isEmpty()) {
+                c.msg("&cNot standing in any configured territory. Territory tags wanted: &f" + manager.territories().stream().map(t -> t.regionTag).toList());
+            } else {
+                for (Territory t : matched) c.msg("&aIn territory: &f" + t.id + " &7(" + t.name + ")");
+            }
+        });
         dbg.registerTab("gang", "fakewin", (c, a) -> a.size() <= 3 ? territoryIds() : List.of("north", "south"));
         dbg.registerTab("gang", "fakecapture", (c, a) -> a.size() <= 3 ? territoryIds() : (a.size() == 4 ? List.of("north", "south") : List.of("<percent>")));
         dbg.registerTab("gang", "fakewar", (c, a) -> List.of("on", "off"));
         dbg.registerTab("gang", "reset", (c, a) -> territoryIds());
+        dbg.registerTab("gang", "here", (c, a) -> List.of());
     }
 
     // ========================= /gang DISPATCH =========================
