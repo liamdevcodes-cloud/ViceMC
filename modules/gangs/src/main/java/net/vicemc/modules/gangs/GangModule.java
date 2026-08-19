@@ -1021,13 +1021,19 @@ public final class GangModule implements ViceModule, Listener {
         // 1) Core cuboid regions (/vregion) - tag match
         if (ctx.regions().isInside(loc, t.regionTag)) return true;
 
-        // 2) ViceRegions module polygon regions (/region) - match by id or name
+        // 2) ViceRegions module polygon regions (/region) - match by id or name.
+        // Polygon ids cannot contain colons, so also match the part after the
+        // last ':' of the tag (e.g. tag "gangzone:market" matches id "market").
+        String want = t.regionTag;
+        int colon = want.lastIndexOf(':');
+        String wantTail = colon >= 0 ? want.substring(colon + 1) : want;
         for (var entry : ctx.storage().moduleDataAll("regions").entrySet()) {
             if (!entry.getKey().startsWith("region:")) continue;
             try {
                 PolygonRegionDto r = Json.fromJson(entry.getValue(), PolygonRegionDto.class);
                 if (r == null || r.id == null || r.vertices == null || r.vertices.size() < 3) continue;
-                if (!t.regionTag.equalsIgnoreCase(r.id) && !t.regionTag.equalsIgnoreCase(r.name)) continue;
+                if (!want.equalsIgnoreCase(r.id) && !want.equalsIgnoreCase(r.name)
+                        && !wantTail.equalsIgnoreCase(r.id) && !wantTail.equalsIgnoreCase(r.name)) continue;
                 if (r.contains(loc)) return true;
             } catch (RuntimeException ignored) {
             }
