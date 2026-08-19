@@ -161,19 +161,39 @@ public final class GangModule implements ViceModule, Listener {
 
     // ========================= DEBUG (ADMIN) =========================
     // Simulate gang events without waiting for real conditions:
-    //   /admindebug gang fakewin <territory> [gang]
-    //   /admindebug gang fakecapture <territory> <gang> <percent>
+    //   /admindebug gang fakewin [territory] [gang]
+    //   /admindebug gang fakecapture [territory] [gang] [percent]
     //   /admindebug gang fakewar [on|off]
-    //   /admindebug gang reset <territory>
+    //   /admindebug gang reset [territory]
+    // If <territory> is omitted the territory the player is standing in is used.
     // Arg layout: c.arg(0)=system, c.arg(1)=action, c.arg(2)+ = real args.
+
+    /**
+     * Resolves the target territory: explicit ID if given, otherwise the
+     * territory the player is currently standing in. Null + error message
+     * sent if neither matches.
+     */
+    private Territory debugTerritory(CommandContext c, String tid) {
+        if (!tid.isEmpty()) {
+            Territory t = manager.territory(tid);
+            if (t == null) c.error("Unknown territory: " + String.join(", ", territoryIds()));
+            return t;
+        }
+        if (!c.isPlayer()) { c.error("You must specify a territory id."); return null; }
+        for (Territory t : manager.territories()) {
+            if (isInsideTerritory(c.player().getLocation(), t)) return t;
+        }
+        c.error("You are not standing in any territory. Available: " + String.join(", ", territoryIds()));
+        return null;
+    }
 
     private void registerDebug() {
         DebugService dbg = ctx.debug();
         dbg.register("gang", "fakewin", c -> {
             String tid = c.arg(2);
             String gangId = c.arg(3, "north").toLowerCase();
-            Territory t = manager.territory(tid);
-            if (t == null) { c.error("Unknown territory: " + String.join(", ", territoryIds())); return; }
+            Territory t = debugTerritory(c, tid);
+            if (t == null) return;
             if (manager.gang(gangId) == null) { c.error("Invalid gang. Use: north, south"); return; }
             capture(t, gangId);
             c.msg("&a[debug] Faked capture: &f" + t.name + " &a-> &f" + gangName(gangId) + "&a.");
@@ -182,10 +202,10 @@ public final class GangModule implements ViceModule, Listener {
             String tid = c.arg(2);
             String gangId = c.arg(3, "north").toLowerCase();
             int pct = c.argInt(4, 50);
-            Territory t = manager.territory(tid);
-            if (t == null) { c.error("Unknown territory: " + String.join(", ", territoryIds())); return; }
+            Territory t = debugTerritory(c, tid);
+            if (t == null) return;
             if (manager.gang(gangId) == null) { c.error("Invalid gang. Use: north, south"); return; }
-            manager.updateProgress(tid, Math.max(0, Math.min(100, pct)), gangId);
+            manager.updateProgress(t.id, Math.max(0, Math.min(100, pct)), gangId);
             c.msg("&a[debug] Set &f" + t.name + " &acapture to &f" + Math.max(0, Math.min(100, pct)) + "% &aby &f" + gangName(gangId) + "&a.");
         });
         dbg.register("gang", "fakewar", c -> {
@@ -200,9 +220,9 @@ public final class GangModule implements ViceModule, Listener {
         });
         dbg.register("gang", "reset", c -> {
             String tid = c.arg(2);
-            Territory t = manager.territory(tid);
-            if (t == null) { c.error("Unknown territory: " + String.join(", ", territoryIds())); return; }
-            manager.captureTerritory(tid, "");
+            Territory t = debugTerritory(c, tid);
+            if (t == null) return;
+            manager.captureTerritory(t.id, "");
             c.msg("&a[debug] Reset &f" + t.name + " &ato neutral.");
         });
         dbg.registerTab("gang", "fakewin", (c, a) -> a.size() <= 3 ? territoryIds() : List.of("north", "south"));
