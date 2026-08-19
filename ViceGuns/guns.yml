@@ -1,0 +1,35 @@
+# Vice Guns tuning.
+#
+# Ammo item skins - the items admins hand out as ammunition. Change the
+# material / model-data if you want a specific custom texture (e.g. from a
+# resource pack). Each ammo item represents one round.
+ammo:
+  pistol:
+    material: IRON_NUGGET
+    model-data: 0
+  smg:
+    material: GOLD_NUGGET
+    model-data: 0
+  rifle:
+    material: IRON_INGOT
+    model-data: 0
+  shell:
+    material: REDSTONE
+    model-data: 0
+  sniper:
+    material: EMERALD
+    model-data: 0
+
+# Sound effects. Format: SOUND_NAME|volume|pitch
+sounds:
+  shot:
+    handgun: ENTITY_GENERIC_EXPLODE|0.8|1.2
+    smg: ENTITY_GENERIC_EXPLODE|0.6|1.6
+    rifle: ENTITY_GENERIC_EXPLODE|1.0|0.9
+    shotgun: ENTITY_FIREWORK_ROCKET_LARGE_BLAST|1.5|0.7
+    sniper: ENTITY_FIREWORK_ROCKET_LARGE_BLAST|2.0|0.5
+  reload: BLOCK_PISTON_EXTEND|0.5|1.0
+  reloaded: BLOCK_PISTON_CONTRACT|0.6|0.9
+  dry: UI_BUTTON_CLICK|0.4|0.5
+  aim: BLOCK_LEVER_CLICK|0.5|1.5
+  hit: ENTITY_GENERIC_EXPLODE|0.4|1.8

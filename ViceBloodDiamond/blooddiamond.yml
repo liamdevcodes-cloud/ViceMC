@@ -1,0 +1,66 @@
+# Blood Diamond Mine: keep-inventory is disabled inside the zone and death
+# causes full item loss (including cosmetics). Mining yields Blood Diamond
+# Shards that craft into Blood Diamonds worth €1 store credit each.
+mine:
+  region-tag: "blooddiamond"
+  shard-chance: 0.15
+  # Blocks that can yield shards. Empty = every block in the mine.
+  materials:
+    - STONE
+    - DEEPSLATE
+    - DIAMOND_ORE
+    - DEEPSLATE_DIAMOND_ORE
+    - IRON_ORE
+    - DEEPSLATE_IRON_ORE
+    - GOLD_ORE
+    - DEEPSLATE_GOLD_ORE
+
+shard:
+  material: PRISMARINE_SHARD
+  name: "&4Blood Diamond Shard"
+  model-data: 501
+  lore:
+    - "&4Blood Diamond Shard&7 - the mine's raw loot."
+    - "&7Mined in the Blood Diamond Mine or from"
+    - "&7Blood Diamond ore (&f10%&7 drop)."
+    - "&7Craft &f8&7 into a Blood Diamond with &f/bd craft"
+    - "&7Shards are consumed when crafting."
+
+blood-diamond:
+  material: DIAMOND
+  name: "&4Blood Diamond"
+  model-data: 500
+  lore:
+    - "&4Blood Diamond&7 - worth &6€1&7 store credit."
+    - "&7Redeem with &f/bd redeem&7."
+    - "&7Credit is non-withdrawable and used for"
+    - "&7ranks and limited offers."
+    - "&7Tradable in-game. Real-money trading is &cbannable&7."
+
+gem:
+  material: REDSTONE
+  name: "&cRed Gem"
+  model-data: 503
+  lore:
+    - "&cRed Gem&7 - a rare collectible from the mine."
+    - "&7Mined from Blood Diamond ore (&f90%&7 drop)."
+    - "&7Hold onto them - they are scarce and desirable."
+
+ore:
+  material: DEEPSLATE_REDSTONE_ORE
+  depleted-material: DEEPSLATE
+  regen-seconds: 30
+  wand:
+    material: BLAZE_ROD
+    name: "&4Blood Diamond Wand"
+    model-data: 504
+    lore:
+      - "&7Right-click to place a Blood Diamond ore."
+      - "&7The ore regenerates &f30s&7 after mining."
+      - "&4Mining: &f10% shard / 90% red gem"
+  reward:
+    gem-chance: 0.9
+    gem-amount: 1
+    shard-amount: 1
+
+shards-per-diamond: 8

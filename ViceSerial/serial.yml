@@ -1,0 +1,45 @@
+# ViceSerial - limited-run serialized items.
+#
+# Staff create a "run" by dropping a custom piece into the /serial console GUI,
+# choosing how many copies exist for that serial number, then handing copies
+# out of the distribution chest GUI. Every copy is tracked. Copies taken out
+# of the chest are in-game and cannot be put back; the only way to remove one
+# is to VOID it (piece or whole serial), which makes every existing copy of it
+# invalid and worthless.
+
+# Maximum copies allowed per serial number (fits the distribution chest).
+max-count: 48
+
+# Copy counts offered in the console GUI. Add/remove as you like.
+counts:
+  - 1
+  - 2
+  - 4
+  - 8
+  - 12
+  - 16
+  - 24
+  - 48
+
+# Serial number prefix and whether the year is included.
+# Result looks like VMC-2026-0001 (year always included in the storage id).
+serial-prefix: "VMC"
+
+# Seconds between validation sweeps. Flags voided items as INVALID on the item
+# itself and runs duplicate detection.
+ticker-seconds: 5
+
+# When enabled, the ticker voids a copy as soon as two or more items carrying
+# the same copy id exist in the world at once (an item duplicated by a player).
+duplicate-check: true
+
+# When a serial or copy is voided, scan online players and remove matching
+# items from their inventories immediately.
+remove-on-void: true
+
+# Lore lines shown on serialized copies.
+lore:
+  limited: "&d&oLimited edition"
+  copy: "&6Serial: &e%d &8/ &e%d"
+  invalid-serial: "&cINVALID - VOIDED"
+  invalid-footer: "&7This item holds no value."

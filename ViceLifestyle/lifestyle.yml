@@ -1,0 +1,170 @@
+# ViceLifestyle: sleep, thirst, energy drinks, bottle deposits and fitness.
+# Custom foods and drinks are defined under "items" - add a new block and
+# reload with /lifestyle reload (admin). No restart needed.
+
+# How often the drain/penalty loop runs, in seconds.
+tick-seconds: 5
+
+rest:
+  # Full rest drains after this many real-time hours awake.
+  hours: 24
+  # Banked hours of sleep gained per real-time minute spent in bed.
+  # Default: 1 minute in bed = 1 hour of sleep (24 minutes = full night).
+  sleep-gain-per-minute: 1.0
+  # Below this rest % the player gets the exhausted warning/effect.
+  warn-below: 25
+  exhausted-effect: SLOWNESS
+  exhausted-amplifier: 0
+
+thirst:
+  # Full thirst drains after this many real-time hours.
+  hours: 24
+  warn-below: 25
+  # Heart damage every N seconds while fully dehydrated (0 = disabled).
+  damage-interval-seconds: 20
+  damage-amount: 1
+  # Thirst restored by drinking a vanilla water bottle.
+  water-bottle-restore: 15
+
+fitness:
+  # Walking speed multiplier at fitness 0 (unhealthy) and 100 (peak form).
+  min-speed: 0.75
+  max-speed: 1.5
+  warn-below: 25
+
+bottle:
+  # The refundable item left behind by drinks like energy cans (statiegeld).
+  empty-material: GLASS_BOTTLE
+  empty-model-data: 900
+  empty-name: "&bEmpty Can"
+  empty-lore:
+    - "&7An empty bottle. Turn it in at the"
+    - "&7bottle deposit with &e/lifestyle deposit&7."
+  # Money paid out per empty bottle (the Dutch statiegeld idea).
+  refund: 25
+
+# Fitness change (positive = healthy, negative = unhealthy) for vanilla foods.
+# Leave a food out and it will not affect fitness.
+vanilla-fitness:
+  APPLE: 5
+  GOLDEN_APPLE: 10
+  ENCHANTED_GOLDEN_APPLE: 12
+  GOLDEN_CARROT: 6
+  CARROT: 3
+  BEETROOT: 3
+  BAKED_POTATO: 4
+  DRIED_KELP: 2
+  SWEET_BERRIES: 3
+  GLOW_BERRIES: 3
+  COOKED_COD: 2
+  COOKED_SALMON: 2
+  MUSHROOM_STEW: 1
+  BREAD: 2
+  COOKED_CHICKEN: -2
+  COOKED_BEEF: -3
+  COOKED_PORKCHOP: -4
+  COOKED_MUTTON: -3
+  COOKED_RABBIT: -2
+  PUMPKIN_PIE: -6
+  COOKIE: -8
+  CAKE: -10
+  MELON_SLICE: 1
+  CHORUS_FRUIT: -5
+  ROTTEN_FLESH: -12
+  SPIDER_EYE: -10
+  POISONOUS_POTATO: -8
+  SUSPICIOUS_STEW: -4
+
+# Custom foods and drinks. kind: FOOD or DRINK.
+#  hunger / saturation : food bars restored (FOOD)
+#  thirst-restore      : thirst % restored (DRINK)
+#  rest-restore        : energy % restored - lets you skip sleeping (DRINK)
+#  fitness             : +healthy / -unhealthy
+#  leaves-empty-bottle : gives a refundable empty bottle after drinking
+#  price               : display price shown in the catalogue
+items:
+  water:
+    kind: DRINK
+    material: POTION
+    model-data: 101
+    name: "&bWater"
+    lore:
+      - "&7Plain bottled water. Restores thirst."
+    hunger: 0
+    saturation: 0
+    thirst-restore: 25
+    rest-restore: 0
+    fitness: 0
+    price: 10
+    leaves-empty-bottle: false
+  energy:
+    kind: DRINK
+    material: HONEY_BOTTLE
+    model-data: 102
+    name: "&eVice Energy"
+    lore:
+      - "&7Boosts your energy so you can skip"
+      - "&7sleeping for a while."
+    hunger: 0
+    saturation: 0
+    thirst-restore: 5
+    rest-restore: 25
+    fitness: -5
+    price: 35
+    leaves-empty-bottle: true
+  juice:
+    kind: DRINK
+    material: HONEY_BOTTLE
+    model-data: 103
+    name: "&6Fruit Juice"
+    lore:
+      - "&7Healthy juice that quenches your thirst."
+    hunger: 0
+    saturation: 0
+    thirst-restore: 20
+    rest-restore: 0
+    fitness: 4
+    price: 25
+    leaves-empty-bottle: false
+  spinach:
+    kind: DRINK
+    material: HONEY_BOTTLE
+    model-data: 104
+    name: "&aSpinach Juice"
+    lore:
+      - "&7A village superfood. Great for fitness."
+    hunger: 0
+    saturation: 0
+    thirst-restore: 10
+    rest-restore: 0
+    fitness: 8
+    price: 40
+    leaves-empty-bottle: false
+  burger:
+    kind: FOOD
+    material: COOKED_PORKCHOP
+    model-data: 105
+    name: "&eJunk Burger"
+    lore:
+      - "&7Fills you up fast, but it is unhealthy."
+    hunger: 10
+    saturation: 12
+    thirst-restore: 0
+    rest-restore: 0
+    fitness: -6
+    price: 15
+    leaves-empty-bottle: false
+  salad:
+    kind: FOOD
+    material: BOWL
+    model-data: 106
+    name: "&aGarden Salad"
+    lore:
+      - "&7Healthy food that keeps you in shape."
+    hunger: 5
+    saturation: 3
+    thirst-restore: 0
+    rest-restore: 0
+    fitness: 6
+    price: 25
+    leaves-empty-bottle: false

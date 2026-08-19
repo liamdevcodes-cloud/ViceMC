@@ -1,0 +1,92 @@
+# Business types, creation costs and which types require a government license.
+creation-costs:
+  FARM: 25000
+  FACTORY: 100000
+  DEALERSHIP: 150000
+  SHOP: 20000
+  FOOD_COMPANY: 40000
+  JEWELRY_STORE: 75000
+  BANK: 500000
+  MINE: 300000
+
+# These business types can only be created (and access discounted government
+# stock) with a license issued by the government module.
+license-required:
+  - FACTORY
+  - FOOD_COMPANY
+  - DEALERSHIP
+  - JEWELRY_STORE
+
+# Factory recipes: consume raw materials and produce a tagged product which
+# can be sold to the government at a fixed price.
+factory-recipes:
+  jewelry:
+    display: "&eJewelry"
+    inputs:
+      GOLD_INGOT: 4
+      DIAMOND: 1
+    output: GOLD_INGOT
+    output-amount: 1
+    government-price: 3500
+  watch:
+    display: "&fWatch"
+    inputs:
+      GOLD_INGOT: 6
+      CLOCK: 1
+    output: CLOCK
+    output-amount: 1
+    government-price: 5000
+  steel:
+    display: "&7Steel"
+    inputs:
+      IRON_INGOT: 8
+      COAL: 4
+    output: IRON_INGOT
+    output-amount: 8
+    government-price: 1600
+  car-parts:
+    display: "&bCar Parts"
+    inputs:
+      IRON_INGOT: 16
+      REDSTONE: 2
+    output: IRON_BLOCK
+    output-amount: 1
+    government-price: 6000
+
+# Farms produce these items on /farm harvest and sell them to the government
+# at the fixed prices below.
+farm:
+  harvest:
+    WHEAT: 16
+    CARROT: 16
+    POTATO: 16
+    BREAD: 4
+  government-price:
+    WHEAT: 4
+    CARROT: 5
+    POTATO: 5
+    BREAD: 25
+
+# Discounted government stock. Only licensed businesses of the listed types
+# may buy it at wholesale; dealerships then resell to players at retail.
+government-stock:
+  food-basket:
+    display: "&6Government Food Basket"
+    item: BREAD
+    amount: 32
+    wholesale: 800
+    requires: [FOOD_COMPANY, SHOP]
+  sedan:
+    display: "&7Standard Sedan"
+    item: SADDLE
+    amount: 1
+    wholesale: 25000
+    retail: 32000
+    requires: [DEALERSHIP]
+  suv:
+    display: "&2Off-Road SUV"
+    item: SADDLE
+    amount: 1
+    wholesale: 40000
+    retail: 52000
+    requires: [DEALERSHIP]

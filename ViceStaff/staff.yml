@@ -1,0 +1,9 @@
+# Staff panel tuning.
+# Maximum act-tier actions (money changes, licenses, teleports) per minute
+# per staff member. Prevents abuse while staying usable.
+actions-per-minute: 10
+# How many audit log entries to keep (oldest are dropped first).
+audit-keep: 1000
+# How many punishment records (bans/mutes) to keep per type. Expired ones
+# are dropped automatically when the list is saved.
+punish-keep: 500

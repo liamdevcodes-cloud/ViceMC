@@ -1,0 +1,24 @@
+# Property market. Players buy a home for a one-off fee, keep it forever,
+# teleport to it any time and sell it back at a percentage of the price.
+# Owning a home is also the requirement for mafia family registration.
+max-owned: 1
+resale-percent: 0.6
+
+# Market properties. Each entry: a unique id, a display name (supports & colors),
+# a price and a teleport location (world,x,y,z,yaw,pitch). The examples below
+# point at the default world's spawn area - edit them or replace them with your
+# own locations, or add properties in-game from your current position with:
+#   /property add <name> <price>
+properties:
+  - id: 1
+    name: "&6Downtown Apartment"
+    price: 150000
+    location: "world,0,64,0,0,0"
+  - id: 2
+    name: "&2Harbour House"
+    price: 250000
+    location: "world,10,64,0,0,0"
+  - id: 3
+    name: "&dVilla Heights"
+    price: 500000
+    location: "world,20,64,0,0,0"

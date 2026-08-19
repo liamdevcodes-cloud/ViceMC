@@ -1,0 +1,37 @@
+# Three gangs, each controlling a territory. Territory control is granted to
+# the elected leader and unlocks drug production for the gang.
+gangs:
+  east:
+    name: "&eEast Side"
+    region-tag: "gang:east"
+    drug-material: SUGAR
+    drug-name: "&2Kush"
+    drug-effect: HASTE
+    drug-amplifier: 2
+    drug-duration-seconds: 60
+  west:
+    name: "&9West Side"
+    region-tag: "gang:west"
+    drug-material: SUGAR
+    drug-name: "&9Cocaine"
+    drug-effect: SPEED
+    drug-amplifier: 2
+    drug-duration-seconds: 60
+  south:
+    name: "&dSouth Side"
+    region-tag: "gang:south"
+    drug-material: SUGAR
+    drug-name: "&5Meth"
+    drug-effect: HASTE
+    drug-amplifier: 3
+    drug-duration-seconds: 45
+
+# Weekly election. During the window members vote via /gang vote; the member
+# with the most votes becomes the leader and controls the territory.
+election:
+  day: SUNDAY
+  hour: 12
+  window-hours: 24
+
+# How many drugs a member may claim per week.
+weekly-drugs: 5

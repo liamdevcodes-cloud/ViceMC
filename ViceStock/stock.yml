@@ -1,0 +1,24 @@
+# ViceStock: the player stock exchange.
+# Companies (businesses) can go public; players trade shares through a public
+# order book. The listed price is re-priced every window from the trades that
+# were made in that window, exactly like a real exchange.
+
+# How often the module checks the clock, in seconds.
+tick-seconds: 60
+
+# Price re-pricing window in seconds (6 hours).
+window-seconds: 21600
+
+# Fixed starting (IPO) price every company lists at.
+ipo-price: 100.0
+
+# Allowed share count when a company goes public.
+min-shares: 10000
+max-shares: 1000000
+
+# Order price limits.
+min-order-price: 1.0
+max-order-price: 100000.0
+
+# How many recent trades each company keeps in its public ledger.
+trade-log-limit: 200

@@ -1,0 +1,5 @@
+regions:
+  gov:
+    bounds: world:-4808,81,803:-4787,101,837
+    tags:
+    - government

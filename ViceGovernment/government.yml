@@ -1,0 +1,26 @@
+# The region tag for the government building. Create it with
+# /vregion pos1 + pos2 + create <id> government
+# Player-facing counter services only work inside this region.
+region-tag: government
+
+# License prices. Citizens pay the fee at the counter and the money goes to
+# the government treasury (the worker's profit).
+license-costs:
+  FARM: 2000
+  SHOP: 3000
+  MINE: 4000
+  FOOD_COMPANY: 5000
+  FACTORY: 6000
+  JEWELRY_STORE: 7000
+  DEALERSHIP: 8000
+  BANK: 10000
+
+# Subsidies are granted as goods (not cash) worth between these amounts, to
+# prevent economic abuse. Each good has a per-unit value used to size the grant.
+subsidy-min: 20000
+subsidy-max: 40000
+subsidy-goods:
+  BREAD: 10
+  IRON_INGOT: 200
+  COAL: 80
+  WHEAT: 8
