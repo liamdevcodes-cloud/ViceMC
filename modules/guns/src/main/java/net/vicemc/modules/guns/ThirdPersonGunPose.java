@@ -142,14 +142,19 @@ public final class ThirdPersonGunPose implements Listener {
         ItemMeta originalMeta = fake.getItemMeta();
         fake.setType(Material.CROSSBOW);
         if (fake.getItemMeta() instanceof CrossbowMeta meta) {
-            copyItemModel(item, originalMeta, meta);
+            // Preserve custom_model_data so ItemsAdder crossbow overrides match
+            if (originalMeta != null && originalMeta.hasCustomModelData()) {
+                meta.setCustomModelData(originalMeta.getCustomModelData());
+            }
+            // Copy the item_model component (1.21.4+) only if the source actually has one
+            copyItemModel(originalMeta, meta);
             meta.setChargedProjectiles(List.of(new ItemStack(Material.ARROW)));
             fake.setItemMeta(meta);
         }
         return fake;
     }
 
-    private void copyItemModel(ItemStack sourceItem, ItemMeta source, ItemMeta target) {
+    private void copyItemModel(ItemMeta source, ItemMeta target) {
         if (source == null) return;
         try {
             Object hasModel = ItemMeta.class.getMethod("hasItemModel").invoke(source);
@@ -157,13 +162,10 @@ public final class ThirdPersonGunPose implements Listener {
                 Object model = ItemMeta.class.getMethod("getItemModel").invoke(source);
                 if (model != null) {
                     ItemMeta.class.getMethod("setItemModel", NamespacedKey.class).invoke(target, model);
-                    return;
                 }
             }
-            NamespacedKey model = NamespacedKey.minecraft(sourceItem.getType().getKey().getKey());
-            ItemMeta.class.getMethod("setItemModel", NamespacedKey.class).invoke(target, model);
-        } catch (ReflectiveOperationException ex) {
-            module.context().logger().fine("Item model component is unavailable; using custom model data fallback.");
+        } catch (ReflectiveOperationException ignored) {
+            // item_model component not available on this server version — CMD is enough
         }
     }
 }
