@@ -24,6 +24,3 @@ permissions:
   vicemc.buildermode.bypass:
     description: Always able to build on the map, regardless of builder mode.
     default: op
-  vicemc.government.admin:
-    description: Admin government operations (bypass region check for counter).
-    default: op

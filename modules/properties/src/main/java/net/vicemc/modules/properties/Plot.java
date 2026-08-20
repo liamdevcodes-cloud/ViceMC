@@ -19,6 +19,7 @@ import java.util.UUID;
 public final class Plot {
 
     public String serial = "";
+    public String name = "";
     public String type = PlotType.HOUSE.name();
     public String world = "world";
     public int minX, minY, minZ, maxX, maxY, maxZ;

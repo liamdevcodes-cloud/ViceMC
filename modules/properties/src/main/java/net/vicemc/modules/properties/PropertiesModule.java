@@ -118,14 +118,15 @@ public final class PropertiesModule implements ViceModule {
                 .executes(this::plotadmin)
                 .tabulates((c, a) -> {
                     if (a.size() <= 1) {
-                        return List.of("wand", "type", "value", "info", "remove", "give", "permit", "unlist", "admin");
+                        return List.of("wand", "type", "value", "info", "remove", "give", "permit", "unlist", "rename", "admin");
                     }
                     if (a.get(0).equals("type") && a.size() == 2) {
                         return List.of("house", "apartment", "farm", "mine", "shop", "food_company",
                                 "factory", "dealership", "jewelry_store", "bank");
                     }
                     if ((a.get(0).equals("info") || a.get(0).equals("remove")
-                            || a.get(0).equals("give") || a.get(0).equals("unlist")) && a.size() == 2) {
+                            || a.get(0).equals("give") || a.get(0).equals("unlist")
+                            || a.get(0).equals("rename")) && a.size() == 2) {
                         return serials();
                     }
                     if ((a.get(0).equals("give") || a.get(0).equals("permit")) && a.size() == 3) {
@@ -168,7 +169,7 @@ public final class PropertiesModule implements ViceModule {
                 return;
             }
         }
-        c.msg("&6" + plot.serial + " &7(" + plot.type().display() + ")");
+        c.msg("&6" + plot.serial + (plot.name.isEmpty() ? "" : " &7- &f" + plot.name) + " &7(" + plot.type().display() + ")");
         c.msg("&7Value: &f" + Text.moneyPlain(plot.price)
                 + (plot.forSale && plot.salePrice > 0 ? " &7| For sale: &f" + Text.moneyPlain(plot.salePrice) : "")
                 + (plot.isRented() ? " &7| Rent: &f" + Text.moneyPlain(plot.rentPrice) : ""));
@@ -227,12 +228,13 @@ public final class PropertiesModule implements ViceModule {
             case "give" -> give(admin, c.arg(1), c.playerArg(2));
             case "permit" -> permit(admin, c.playerArg(1), c.arg(2));
             case "unlist" -> unlist(admin, c.arg(1));
+            case "rename" -> rename(admin, c.arg(1), c.arg(2));
             case "admin" -> gui.openAdmin(admin);
             default -> {
                 if (c.size() == 0) {
                     gui.openAdmin(admin);
                 } else {
-                    c.usage("/plotadmin wand | type <type> | value <amount> | info <serial> | remove <serial> | give <serial> <player> | permit <player> on|off | unlist <serial> | admin");
+                    c.usage("/plotadmin wand | type <type> | value <amount> | info <serial> | remove <serial> | give <serial> <player> | permit <player> on|off | unlist <serial> | rename <serial> <name> | admin");
                 }
             }
         }
@@ -335,6 +337,21 @@ public final class PropertiesModule implements ViceModule {
         plot.interiorManifest = "";
         manager.save(plot);
         ctx.notifications().msg(admin, "&aRemoved &f" + serial + "&a from the market.");
+    }
+
+    private void rename(Player admin, String serial, String newName) {
+        Plot plot = manager.bySerial(serial);
+        if (plot == null) {
+            ctx.notifications().warn(admin, "Plot not found.");
+            return;
+        }
+        if (newName == null || newName.isEmpty()) {
+            ctx.notifications().warn(admin, "Usage: /plotadmin rename <serial> <name>");
+            return;
+        }
+        plot.name = newName;
+        manager.save(plot);
+        ctx.notifications().msg(admin, "&aRenamed plot &f" + serial + "&a to &f" + newName + "&a.");
     }
 
     public void giveWand(Player player) {

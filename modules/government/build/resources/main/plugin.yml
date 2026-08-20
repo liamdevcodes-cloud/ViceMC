@@ -8,3 +8,8 @@ commands:
   license:
   gov:
   govcounter:
+  govadmin:
+permissions:
+  vicemc.government.admin:
+    description: Admin government operations (bypass region check for counter).
+    default: op
