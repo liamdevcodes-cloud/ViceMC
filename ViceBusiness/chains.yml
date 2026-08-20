@@ -90,3 +90,95 @@ government-stock:
     wholesale: 40000
     retail: 52000
     requires: [DEALERSHIP]
+
+# Supply shop catalogs per business type. Each item can be bought at a
+# discounted rate by licensed business owners. max-stock is the restock
+# limit (resets on restock cycle). Admins manage these through the
+# /business admin supply command.
+supply-catalog:
+  SHOP:
+    bread:
+      display: "&6Bread"
+      item: BREAD
+      price: 5
+      max-stock: 100
+    cooked_beef:
+      display: "&6Cooked Beef"
+      item: COOKED_BEEF
+      price: 12
+      max-stock: 50
+    golden_apple:
+      display: "&6Golden Apple"
+      item: GOLDEN_APPLE
+      price: 200
+      max-stock: 10
+  FOOD_COMPANY:
+    bread:
+      display: "&6Bread"
+      item: BREAD
+      price: 3
+      max-stock: 200
+    cooked_beef:
+      display: "&6Cooked Beef"
+      item: COOKED_BEEF
+      price: 8
+      max-stock: 100
+    cooked_porkchop:
+      display: "&6Cooked Porkchop"
+      item: COOKED_PORKCHOP
+      price: 10
+      max-stock: 80
+    cake:
+      display: "&6Cake"
+      item: CAKE
+      price: 50
+      max-stock: 20
+  FACTORY:
+    iron_ingot:
+      display: "&7Iron Ingot"
+      item: IRON_INGOT
+      price: 150
+      max-stock: 64
+    coal:
+      display: "&7Coal"
+      item: COAL
+      price: 30
+      max-stock: 128
+    redstone:
+      display: "&cRedstone"
+      item: REDSTONE
+      price: 80
+      max-stock: 64
+  DEALERSHIP:
+    saddle:
+      display: "&7Saddle"
+      item: SADDLE
+      price: 500
+      max-stock: 10
+    name_tag:
+      display: "&6Name Tag"
+      item: NAME_TAG
+      price: 300
+      max-stock: 20
+  JEWELRY_STORE:
+    gold_ingot:
+      display: "&6Gold Ingot"
+      item: GOLD_INGOT
+      price: 400
+      max-stock: 32
+    diamond:
+      display: "&bDiamond"
+      item: DIAMOND
+      price: 2000
+      max-stock: 10
+  MINE:
+    iron_pickaxe:
+      display: "&7Iron Pickaxe"
+      item: IRON_PICKAXE
+      price: 200
+      max-stock: 20
+    torch:
+      display: "&6Torch"
+      item: TORCH
+      price: 2
+      max-stock: 256
