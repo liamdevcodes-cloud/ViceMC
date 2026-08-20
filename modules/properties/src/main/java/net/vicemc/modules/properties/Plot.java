@@ -49,6 +49,13 @@ public final class Plot {
     /** blockKey (x,y,z) -> UUID of the player who placed the block. */
     public Map<String, String> placed = new HashMap<>();
 
+    /**
+     * Polygon vertices as [x, z] pairs. Null or empty means this plot uses
+     * the legacy cuboid bounds (minX/minZ/maxX/maxZ). When present the plot
+     * footprint is the polygon projected from minY to maxY.
+     */
+    public List<int[]> vertices;
+
     public boolean owned() {
         return owner != null;
     }
@@ -63,11 +70,51 @@ public final class Plot {
     }
 
     public boolean contains(String worldName, int x, int y, int z) {
-        return worldName != null
-                && worldName.equalsIgnoreCase(world)
-                && x >= minX && x <= maxX
-                && y >= minY && y <= maxY
-                && z >= minZ && z <= maxZ;
+        if (worldName == null || !worldName.equalsIgnoreCase(world)) {
+            return false;
+        }
+        if (y < minY || y > maxY) {
+            return false;
+        }
+        if (hasPolygon()) {
+            return contains2D(x, z);
+        }
+        return x >= minX && x <= maxX && z >= minZ && z <= maxZ;
+    }
+
+    /** True when this plot was created with the polygon wand. */
+    public boolean hasPolygon() {
+        return vertices != null && vertices.size() >= 3;
+    }
+
+    /** Ray-casting point-in-polygon for the x/z footprint. */
+    public boolean contains2D(int x, int z) {
+        boolean inside = false;
+        int n = vertices.size();
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+            int[] a = vertices.get(i);
+            int[] b = vertices.get(j);
+            if ((a[1] > z) != (b[1] > z)
+                    && x < (double) (b[0] - a[0]) * (z - a[1]) / (double) (b[1] - a[1]) + a[0]) {
+                inside = !inside;
+            }
+        }
+        return inside;
+    }
+
+    /** Shoelace formula footprint area in blocks^2. */
+    public double footprintArea() {
+        if (!hasPolygon()) {
+            return (double) (maxX - minX + 1) * (maxZ - minZ + 1);
+        }
+        int n = vertices.size();
+        double sum = 0;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+            int[] a = vertices.get(i);
+            int[] b = vertices.get(j);
+            sum += (double) a[0] * b[1] - (double) b[0] * a[1];
+        }
+        return Math.abs(sum) / 2.0;
     }
 
     /** True while the plot is listed for sale WITH its interior (locked). */

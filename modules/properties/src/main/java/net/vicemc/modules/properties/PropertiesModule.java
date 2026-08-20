@@ -118,7 +118,7 @@ public final class PropertiesModule implements ViceModule {
                 .executes(this::plotadmin)
                 .tabulates((c, a) -> {
                     if (a.size() <= 1) {
-                        return List.of("wand", "type", "value", "info", "remove", "give", "permit", "unlist", "rename", "admin");
+                        return List.of("wand", "pwand", "type", "value", "info", "remove", "give", "permit", "unlist", "rename", "admin");
                     }
                     if (a.get(0).equals("type") && a.size() == 2) {
                         return List.of("house", "apartment", "farm", "mine", "shop", "food_company",
@@ -169,7 +169,8 @@ public final class PropertiesModule implements ViceModule {
                 return;
             }
         }
-        c.msg("&6" + plot.serial + (plot.name.isEmpty() ? "" : " &7- &f" + plot.name) + " &7(" + plot.type().display() + ")");
+        c.msg("&6" + plot.serial + (plot.name.isEmpty() ? "" : " &7- &f" + plot.name) + " &7(" + plot.type().display()
+                + (plot.hasPolygon() ? " &7polygon, " + plot.vertices.size() + " vertices" : "") + ")");
         c.msg("&7Value: &f" + Text.moneyPlain(plot.price)
                 + (plot.forSale && plot.salePrice > 0 ? " &7| For sale: &f" + Text.moneyPlain(plot.salePrice) : "")
                 + (plot.isRented() ? " &7| Rent: &f" + Text.moneyPlain(plot.rentPrice) : ""));
@@ -221,6 +222,7 @@ public final class PropertiesModule implements ViceModule {
         }
         switch (c.arg(0)) {
             case "wand" -> giveWand(admin);
+            case "pwand" -> givePolyWand(admin);
             case "type" -> setType(admin, c.arg(1));
             case "value" -> setValue(admin, c.argDouble(1, -1));
             case "info" -> info(admin, c.arg(1));
@@ -234,7 +236,7 @@ public final class PropertiesModule implements ViceModule {
                 if (c.size() == 0) {
                     gui.openAdmin(admin);
                 } else {
-                    c.usage("/plotadmin wand | type <type> | value <amount> | info <serial> | remove <serial> | give <serial> <player> | permit <player> on|off | unlist <serial> | rename <serial> <name> | admin");
+                    c.usage("/plotadmin wand | pwand | type <type> | value <amount> | info <serial> | remove <serial> | give <serial> <player> | permit <player> on|off | unlist <serial> | rename <serial> <name> | admin");
                 }
             }
         }
@@ -369,6 +371,24 @@ public final class PropertiesModule implements ViceModule {
             player.getWorld().dropItemNaturally(player.getLocation(), left.values().iterator().next());
         }
         ctx.notifications().msg(player, "&aHere is your plot wand. Select two corners to create a plot.");
+    }
+
+    public void givePolyWand(Player player) {
+        ItemStack wand = ItemBuilder.of(Material.GOLDEN_AXE)
+                .name("&bPolygon Plot Wand")
+                .lore("&7Left-click: add vertex",
+                        "&7Shift+left-click air: clear selection",
+                        "&7Right-click: close polygon & prompt Y height",
+                        "&7Creates a polygon &f" + manager.wandType().display()
+                                + "&7 plot worth &f" + Text.moneyPlain(manager.wandValue()) + "&7.",
+                        "&7Type/value: &e/plotadmin type|value")
+                .tag(PlotListener.polyWandKey(), "true")
+                .build();
+        var left = player.getInventory().addItem(wand);
+        if (!left.isEmpty()) {
+            player.getWorld().dropItemNaturally(player.getLocation(), left.values().iterator().next());
+        }
+        ctx.notifications().msg(player, "&aHere is your polygon wand. Click blocks to draw the plot shape.");
     }
 
     private void cusage(Player player, String usage) {

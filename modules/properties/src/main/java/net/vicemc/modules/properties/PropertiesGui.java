@@ -780,16 +780,23 @@ public final class PropertiesGui {
                 .name("&6Plot wand settings")
                 .lore("&7Type: &f" + module.manager().wandType().display(),
                         "&7Default value: &f" + GuiKit.fmt(module.manager().wandValue()),
-                        "&7Left-click = corner 1,",
-                        "&7Right-click = corner 2.")
+                        "&7Cuboid: left/right-click corners.",
+                        "&7Polygon: click vertices, right-click",
+                        "&7to close & set height.")
                 .build(), GuiKit.NONE);
         builder.item(GuiKit.CLOSE, GuiKit.close(), (p, c) -> p.closeInventory());
 
-        builder.item(GuiKit.ACTION_1, GuiKit.icon(Material.STICK, "&aGet plot wand",
-                "&7Adds the wand to your inventory."),
+        builder.item(GuiKit.ACTION_1, GuiKit.icon(Material.STICK, "&aGet cuboid wand",
+                "&7Left-click: corner 1",
+                "&7Right-click: corner 2 to create."),
                 (p, c) -> module.giveWand(p));
 
-        builder.item(GuiKit.ACTION_2, GuiKit.icon(Material.ARROW, "&6Wand type: "
+        builder.item(GuiKit.ACTION_2, GuiKit.icon(Material.GOLDEN_AXE, "&bGet polygon wand",
+                "&7Click blocks to draw the",
+                "&7shape, right-click to set height."),
+                (p, c) -> module.givePolyWand(p));
+
+        builder.item(GuiKit.ACTION_3, GuiKit.icon(Material.ARROW, "&6Wand type: "
                         + module.manager().wandType().display(),
                         "&7Click to cycle the plot type",
                         "&7new plots are created with."),
@@ -800,7 +807,7 @@ public final class PropertiesGui {
                     openAdmin(p);
                 });
 
-        builder.item(GuiKit.ACTION_3, GuiKit.icon(Material.GOLD_INGOT, "&6Set default value",
+        builder.item(GuiKit.ACTION_4, GuiKit.icon(Material.GOLD_INGOT, "&6Set default value",
                 "&7The value each new plot gets,",
                 "&7so you never type it per plot."),
                 (p, c) -> module.prompts().prompt(p,
@@ -825,7 +832,7 @@ public final class PropertiesGui {
                             }
                         }));
 
-        builder.item(GuiKit.ACTION_4, GuiKit.icon(Material.NAME_TAG, "&6Grant permit",
+        builder.item(GuiKit.ACTION_5, GuiKit.icon(Material.NAME_TAG, "&6Grant permit",
                 "&7Toggle a player's real estate",
                 "&7permit (university stand-in)."),
                 (p, c) -> module.prompts().prompt(p,
@@ -848,7 +855,7 @@ public final class PropertiesGui {
                             openAdmin(pl);
                         }));
 
-        builder.item(GuiKit.ACTION_5, GuiKit.icon(Material.REDSTONE, "&4Plot list",
+        builder.item(GuiKit.GRID_FIRST, GuiKit.icon(Material.REDSTONE, "&4Plot list",
                 "&7View and delete plots."),
                 (p, c) -> openAdminTypeList(p));
 

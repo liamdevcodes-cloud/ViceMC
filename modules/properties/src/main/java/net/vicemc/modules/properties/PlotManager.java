@@ -154,6 +154,42 @@ public final class PlotManager {
         return plot;
     }
 
+    /**
+     * Creates a polygon plot from a list of 2D [x,z] vertices and a Y height.
+     * The bounding box is derived from the vertices. The vertices' Y is taken
+     * from the first vertex and the height is added on top.
+     */
+    public Plot createPolygon(PlotType type, String world, List<int[]> vertices, int baseY, int height, double value) {
+        Plot plot = new Plot();
+        plot.serial = nextSerial(type);
+        plot.type = type.name();
+        plot.world = world;
+        plot.vertices = new ArrayList<>(vertices);
+        plot.minY = baseY;
+        plot.maxY = baseY + height;
+
+        // Derive bounding box from vertices
+        int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
+        int minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
+        for (int[] v : vertices) {
+            if (v[0] < minX) minX = v[0];
+            if (v[0] > maxX) maxX = v[0];
+            if (v[1] < minZ) minZ = v[1];
+            if (v[1] > maxZ) maxZ = v[1];
+        }
+        plot.minX = minX;
+        plot.maxX = maxX;
+        plot.minZ = minZ;
+        plot.maxZ = maxZ;
+        plot.price = value;
+        if (overlaps(plot)) {
+            return null;
+        }
+        plots.put(plot.serial, plot);
+        save(plot);
+        return plot;
+    }
+
     public boolean overlaps(Plot candidate) {
         for (Plot other : plots.values()) {
             if (other.serial.equals(candidate.serial)) {

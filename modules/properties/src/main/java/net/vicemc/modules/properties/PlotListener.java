@@ -24,6 +24,8 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,10 +39,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class PlotListener implements Listener {
 
     private static final NamespacedKey WAND_KEY = NamespacedKey.fromString("vicemc:plot_wand");
+    private static final NamespacedKey POLY_WAND_KEY = NamespacedKey.fromString("vicemc:plot_poly_wand");
 
     private final PropertiesModule module;
     private final PlotManager manager;
     private final Map<UUID, Location> firstCorner = new ConcurrentHashMap<>();
+    private final Map<UUID, List<int[]>> polySelection = new ConcurrentHashMap<>();
+    private final Map<UUID, String> polyWorld = new ConcurrentHashMap<>();
 
     public PlotListener(PropertiesModule module) {
         this.module = module;
@@ -51,8 +56,25 @@ public final class PlotListener implements Listener {
         return item != null && ItemBuilder.hasTag(item, WAND_KEY, "true");
     }
 
+    public static boolean isPolyWand(ItemStack item) {
+        return item != null && ItemBuilder.hasTag(item, POLY_WAND_KEY, "true");
+    }
+
     public static NamespacedKey wandKey() {
         return WAND_KEY;
+    }
+
+    public static NamespacedKey polyWandKey() {
+        return POLY_WAND_KEY;
+    }
+
+    public List<int[]> polySelection(UUID uuid) {
+        return polySelection.computeIfAbsent(uuid, k -> new ArrayList<>());
+    }
+
+    public void clearPolySelection(UUID uuid) {
+        polySelection.remove(uuid);
+        polyWorld.remove(uuid);
     }
 
     // --- Admin wand -------------------------------------------------------
@@ -168,6 +190,166 @@ public final class PlotListener implements Listener {
 
     private void spawnFor(Player viewer, int x, int y, int z, Particle.DustOptions dust) {
         viewer.spawnParticle(Particle.DUST, x + 0.5, y + 0.5, z + 0.5, 1, 0, 0, 0, 0, dust);
+    }
+
+    // --- Polygon wand -----------------------------------------------------
+
+    @EventHandler
+    public void onPolyWand(PlayerInteractEvent event) {
+        Player player = event.getPlayer();
+        ItemStack hand = player.getInventory().getItemInMainHand();
+        if (!isPolyWand(hand)) {
+            return;
+        }
+        event.setCancelled(true);
+        if (!player.hasPermission("vicemc.properties.admin")) {
+            module.context().notifications().warn(player, "You do not have permission to use the polygon wand.");
+            return;
+        }
+        Action action = event.getAction();
+        if (action == Action.LEFT_CLICK_AIR && player.isSneaking()) {
+            clearPolySelection(player.getUniqueId());
+            module.context().notifications().msg(player, "&7Polygon selection cleared.");
+            return;
+        }
+        Block clicked = event.getClickedBlock();
+        if (clicked == null) {
+            return;
+        }
+        UUID id = player.getUniqueId();
+        List<int[]> verts = polySelection(id);
+        if (action == Action.LEFT_CLICK_BLOCK) {
+            // All vertices must be in the same world
+            String cw = polyWorld.get(id);
+            if (cw == null) {
+                polyWorld.put(id, clicked.getWorld().getName());
+            } else if (!cw.equalsIgnoreCase(clicked.getWorld().getName())) {
+                module.context().notifications().warn(player, "All vertices must be in the same world.");
+                return;
+            }
+            verts.add(new int[]{clicked.getX(), clicked.getZ()});
+            module.context().notifications().msg(player, "&bPolygon wand &7- vertex &f" + verts.size()
+                    + "&7: &f" + clicked.getX() + ", " + clicked.getZ()
+                    + "&7. Left-click more points, right-click to close.");
+            drawVertex(player, clicked);
+        } else if (action == Action.RIGHT_CLICK_BLOCK) {
+            if (verts.size() < 3) {
+                module.context().notifications().warn(player, "You need at least 3 vertices to close a polygon "
+                        + "(currently " + verts.size() + ").");
+                return;
+            }
+            // Prompt for Y height
+            module.prompts().prompt(player,
+                    "&eType the height in blocks for this polygon plot (e.g. 10), or &ccancel&e.",
+                    (p, input) -> {
+                        if (input.equalsIgnoreCase("cancel")) {
+                            clearPolySelection(p.getUniqueId());
+                            module.context().notifications().msg(p, "&7Polygon creation cancelled.");
+                            return;
+                        }
+                        try {
+                            int height = Integer.parseInt(input.trim());
+                            if (height < 1 || height > 256) {
+                                throw new NumberFormatException();
+                            }
+                            createPolygonPlot(p, verts, height);
+                        } catch (NumberFormatException ex) {
+                            module.context().notifications().warn(p, "Enter a valid height (1-256).");
+                            module.prompts().prompt(p,
+                                    "&eType the height in blocks for this polygon plot (e.g. 10), or &ccancel&e.",
+                                    (p2, input2) -> {
+                                        // Re-enter the full flow on retry
+                                        if (input2.equalsIgnoreCase("cancel")) {
+                                            clearPolySelection(p2.getUniqueId());
+                                            return;
+                                        }
+                                        try {
+                                            int h = Integer.parseInt(input2.trim());
+                                            if (h < 1 || h > 256) throw new NumberFormatException();
+                                            createPolygonPlot(p2, verts, h);
+                                        } catch (NumberFormatException ex2) {
+                                            module.context().notifications().warn(p2, "Invalid height. Polygon creation cancelled.");
+                                            clearPolySelection(p2.getUniqueId());
+                                        }
+                                    });
+                        }
+                    });
+        }
+    }
+
+    private void createPolygonPlot(Player player, List<int[]> verts, int height) {
+        String worldName = polyWorld.get(player.getUniqueId());
+        if (worldName == null) {
+            module.context().notifications().warn(player, "Selection lost. Try again.");
+            clearPolySelection(player.getUniqueId());
+            return;
+        }
+        int baseY = player.getLocation().getBlockY();
+        PlotType type = manager.wandType();
+        double value = manager.wandValue();
+        Plot plot = manager.createPolygon(type, worldName, verts, baseY, height, value);
+        clearPolySelection(player.getUniqueId());
+        if (plot == null) {
+            module.context().notifications().warn(player, "That polygon overlaps an existing plot.");
+            return;
+        }
+        module.context().notifications().msg(player, "&aCreated polygon &f" + type.display() + " &e" + plot.serial
+                + "&a worth &f" + net.vicemc.api.util.Text.moneyPlain(value)
+                + "&a. (" + verts.size() + " vertices, " + (height) + " blocks high)");
+        drawPolyBorder(plot);
+    }
+
+    private void drawVertex(Player player, Block block) {
+        Particle.DustOptions dust = new Particle.DustOptions(org.bukkit.Color.fromRGB(0, 200, 255), 1.2f);
+        for (int x = -1; x <= 1; x++) {
+            for (int z = -1; z <= 1; z++) {
+                spawnFor(player, block.getX() + x, block.getY(), block.getZ() + z, dust);
+            }
+        }
+    }
+
+    private void drawPolyBorder(Plot plot) {
+        World world = Bukkit.getWorld(plot.world);
+        if (world == null || !plot.hasPolygon()) {
+            return;
+        }
+        Particle.DustOptions dust = new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 200, 0), 1f);
+        List<int[]> verts = plot.vertices;
+        for (Player viewer : world.getPlayers()) {
+            // Bottom edge
+            for (int i = 0; i < verts.size(); i++) {
+                int[] a = verts.get(i);
+                int[] b = verts.get((i + 1) % verts.size());
+                drawLine(viewer, a[0], plot.minY, a[1], b[0], plot.minY, b[1], dust);
+            }
+            // Top edge
+            for (int i = 0; i < verts.size(); i++) {
+                int[] a = verts.get(i);
+                int[] b = verts.get((i + 1) % verts.size());
+                drawLine(viewer, a[0], plot.maxY, a[1], b[0], plot.maxY, b[1], dust);
+            }
+            // Vertical edges at each vertex
+            for (int[] v : verts) {
+                for (int y = plot.minY; y <= plot.maxY; y++) {
+                    spawnFor(viewer, v[0], y, v[1], dust);
+                }
+            }
+        }
+    }
+
+    private void drawLine(Player viewer, int x1, int y1, int z1, int x2, int y2, int z2, Particle.DustOptions dust) {
+        int steps = Math.max(Math.abs(x2 - x1), Math.max(Math.abs(y2 - y1), Math.abs(z2 - z1)));
+        if (steps == 0) {
+            spawnFor(viewer, x1, y1, z1, dust);
+            return;
+        }
+        for (int i = 0; i <= steps; i++) {
+            double t = (double) i / steps;
+            int x = (int) Math.round(x1 + (x2 - x1) * t);
+            int y = (int) Math.round(y1 + (y2 - y1) * t);
+            int z = (int) Math.round(z1 + (z2 - z1) * t);
+            spawnFor(viewer, x, y, z, dust);
+        }
     }
 
     // --- Protection -------------------------------------------------------
