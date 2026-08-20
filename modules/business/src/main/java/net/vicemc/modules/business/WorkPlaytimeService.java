@@ -1,16 +1,16 @@
 package net.vicemc.modules.business;
 
 import net.vicemc.api.ViceModuleContext;
+import net.vicemc.api.ViceModule;
 import net.vicemc.core.ViceCore;
-import net.vicemc.modules.properties.Plot;
-import net.vicemc.modules.properties.PlotManager;
-import net.vicemc.modules.properties.PropertiesModule;
 import org.bukkit.Bukkit;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -19,6 +19,9 @@ import java.util.UUID;
  * {@link #tickAll()} every second. For each online player the service checks
  * whether they are standing inside a plot whose type matches a business they
  * own or are employed at. If so, their accumulated work time is incremented.
+ * <p>
+ * The Properties module is accessed via reflection since the business module
+ * has no compile-time dependency on it.
  * <p>
  * Storage keys follow the pattern {@code worktime:<businessId>:<playerUuid>}
  * and store the seconds count as a plain string.
@@ -38,6 +41,12 @@ public final class WorkPlaytimeService {
 
     /** Tick counter — save to storage every 60 ticks (60 seconds). */
     private int ticksSinceSave = 0;
+
+    // Cached reflection handles
+    private Method managerMethod;
+    private Method atMethod;
+    private Method ownedMethod;
+    private boolean reflectionFailed = false;
 
     public WorkPlaytimeService(ViceModuleContext ctx, BusinessManager manager) {
         this.ctx = ctx;
@@ -73,43 +82,38 @@ public final class WorkPlaytimeService {
             UUID uuid = player.getUniqueId();
             Block block = player.getLocation().getBlock();
 
-            // Resolve the Properties PlotManager
-            PlotManager plotManager = resolvePlotManager();
-            if (plotManager == null) {
-                continue;
-            }
-
-            Plot plot = plotManager.at(block);
-            if (plot == null || !plot.owned()) {
-                // Player is not inside any owned plot — stop tracking
+            Object plot = getPlotAtBlock(block);
+            if (plot == null || !isPlotOwned(plot)) {
                 if (currentBusiness.containsKey(uuid)) {
                     stopTracking(player);
                 }
                 continue;
             }
 
-            // Find a business whose type matches the plot type and where the
-            // player is owner or employee
-            Business matched = findMatchingBusiness(uuid, plot);
+            String plotType = getPlotType(plot);
+            if (plotType == null) {
+                if (currentBusiness.containsKey(uuid)) {
+                    stopTracking(player);
+                }
+                continue;
+            }
+
+            Business matched = findMatchingBusiness(uuid, plotType);
             if (matched == null) {
-                // Plot exists but no matching business
                 if (currentBusiness.containsKey(uuid)) {
                     stopTracking(player);
                 }
                 continue;
             }
 
-            // Ensure tracking is active for this business
             Integer trackedId = currentBusiness.get(uuid);
             if (trackedId == null || trackedId != matched.id) {
                 startTracking(player, matched.id);
             }
 
-            // Increment work time by 1 second
             incrementWorkTime(matched.id, uuid, 1L);
         }
 
-        // Periodic flush to storage
         if (ticksSinceSave >= 60) {
             flushPending();
             ticksSinceSave = 0;
@@ -162,7 +166,8 @@ public final class WorkPlaytimeService {
     public void saveWorkTime(int businessId, UUID playerUUID, long seconds) {
         String key = cacheKey(businessId, playerUUID);
         pendingSeconds.put(key, seconds);
-        ctx.storage().setModuleData("business", WORKTIME_PREFIX + businessId + ":" + playerUUID,
+        ctx.storage().setModuleData("business",
+                WORKTIME_PREFIX + businessId + ":" + playerUUID,
                 String.valueOf(seconds));
     }
 
@@ -181,7 +186,6 @@ public final class WorkPlaytimeService {
     private void flushPending() {
         for (Map.Entry<String, Long> entry : pendingSeconds.entrySet()) {
             String key = entry.getKey();
-            // key format: "<businessId>:<playerUUID>"
             int sep = key.indexOf(':');
             int businessId = Integer.parseInt(key.substring(0, sep));
             UUID playerUUID = UUID.fromString(key.substring(sep + 1));
@@ -198,12 +202,7 @@ public final class WorkPlaytimeService {
                 .orElse(0L);
     }
 
-    /**
-     * Finds the business owned or employed by the player whose type matches
-     * the given plot type.
-     */
-    private Business findMatchingBusiness(UUID playerUUID, Plot plot) {
-        String plotType = plot.type; // e.g. "SHOP"
+    private Business findMatchingBusiness(UUID playerUUID, String plotType) {
         for (Business business : manager.all()) {
             if (business.type.equalsIgnoreCase(plotType)
                     && manager.isOwnerOrEmployee(playerUUID, business)) {
@@ -213,14 +212,78 @@ public final class WorkPlaytimeService {
         return null;
     }
 
-    private PlotManager resolvePlotManager() {
-        return ViceCore.get().getModuleRegistry()
-                .module("properties")
-                .map(m -> ((PropertiesModule) m).manager())
-                .orElse(null);
-    }
-
     private String cacheKey(int businessId, UUID playerUUID) {
         return businessId + ":" + playerUUID;
+    }
+
+    // --- Reflection: Properties module access ------------------------------
+
+    /**
+     * Resolves the PlotManager from the Properties module via reflection and
+     * calls {@code at(Block)} to find the plot at the given block.
+     */
+    private Object getPlotAtBlock(Block block) {
+        try {
+            Object plotManager = resolvePlotManager();
+            if (plotManager == null) {
+                return null;
+            }
+            if (atMethod == null) {
+                atMethod = plotManager.getClass().getMethod("at", Block.class);
+            }
+            return atMethod.invoke(plotManager, block);
+        } catch (Exception e) {
+            reflectionFailed = true;
+            return null;
+        }
+    }
+
+    /** Reads the {@code type} field from a Plot object via reflection. */
+    private String getPlotType(Object plot) {
+        try {
+            var field = plot.getClass().getField("type");
+            Object value = field.get(plot);
+            return value instanceof String s ? s : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Calls {@code owned()} on a Plot object via reflection. */
+    private boolean isPlotOwned(Object plot) {
+        try {
+            if (ownedMethod == null) {
+                ownedMethod = plot.getClass().getMethod("owned");
+            }
+            Object result = ownedMethod.invoke(plot);
+            return result instanceof Boolean b && b;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Resolves the PlotManager from the Properties module via the module
+     * registry. Uses reflection to call {@code manager()} on the module.
+     */
+    private Object resolvePlotManager() {
+        if (reflectionFailed) {
+            return null;
+        }
+        try {
+            Optional<ViceModule> module = ViceCore.get().getModuleRegistry()
+                    .module("properties");
+            if (module.isEmpty()) {
+                return null;
+            }
+            ViceModule propsModule = module.get();
+            if (managerMethod == null) {
+                managerMethod = propsModule.getClass().getMethod("manager");
+            }
+            return managerMethod.invoke(propsModule);
+        } catch (Exception e) {
+            reflectionFailed = true;
+            return null;
+        }
     }
 }

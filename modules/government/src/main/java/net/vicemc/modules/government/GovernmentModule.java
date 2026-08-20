@@ -117,6 +117,14 @@ public final class GovernmentModule implements ViceModule, Listener {
                 .description("Open the government counter (inside the government building)")
                 .executes(this::govcounter)
                 .build());
+
+        ctx.commands().register(ctx.plugin(), CommandSpec.builder()
+                .name("govadmin")
+                .description("Admin government operations (bypasses region check)")
+                .permission("vicemc.government.admin")
+                .executes(this::govadmin)
+                .tabulates((c, a) -> a.size() <= 1 ? List.of("serve") : List.of())
+                .build());
     }
 
     // --- GUI facade -------------------------------------------------------
@@ -643,6 +651,17 @@ public final class GovernmentModule implements ViceModule, Listener {
             return;
         }
         counterGui.openPicker(c.player());
+    }
+
+    private void govadmin(CommandContext c) {
+        if (!c.isPlayer()) {
+            c.error("Only players can use this.");
+            return;
+        }
+        switch (c.arg(0)) {
+            case "serve" -> counterGui.openPickerAdmin(c.player());
+            default -> c.msg("&6/govadmin serve &8- &7Open the government counter without region check");
+        }
     }
 
     private List<String> playerNames() {

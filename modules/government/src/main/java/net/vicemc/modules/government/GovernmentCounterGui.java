@@ -35,9 +35,36 @@ public final class GovernmentCounterGui {
     private final GovernmentModule module;
     private final Map<UUID, Draft> drafts = new ConcurrentHashMap<>();
 
+    /** When true, the government region check is skipped (admin bypass mode). */
+    private boolean bypassRegion = false;
+
     public GovernmentCounterGui(ViceModuleContext ctx, GovernmentModule module) {
         this.ctx = ctx;
         this.module = module;
+    }
+
+    // --- Admin bypass -------------------------------------------------------
+
+    /**
+     * Opens the counter GUI without requiring the government region.
+     * Used by {@code /govadmin serve}.
+     */
+    public void openPickerAdmin(Player employee) {
+        bypassRegion = true;
+        try {
+            openPicker(employee);
+        } finally {
+            bypassRegion = false;
+        }
+    }
+
+    private void openCounterAdmin(Player employee, UUID target) {
+        bypassRegion = true;
+        try {
+            openCounter(employee, target);
+        } finally {
+            bypassRegion = false;
+        }
     }
 
     // --- Pick a citizen to serve ------------------------------------------
@@ -64,7 +91,13 @@ public final class GovernmentCounterGui {
                     "&e" + target.getName(),
                     "&7Balance: &f" + GuiKit.fmt(ctx.economy().balance(target.getUniqueId())),
                     "&7Licenses: &f" + module.businessModule().manager().licenses(target.getUniqueId()).size(),
-                    "&aClick to serve."), (p, c) -> openCounter(p, target.getUniqueId()));
+                    "&aClick to serve."), (p, c) -> {
+                if (bypassRegion) {
+                    openCounterAdmin(p, target.getUniqueId());
+                } else {
+                    openCounter(p, target.getUniqueId());
+                }
+            });
         }
         builder.open(employee);
     }
@@ -410,7 +443,7 @@ public final class GovernmentCounterGui {
     // --- Helpers ----------------------------------------------------------
 
     private boolean inGovernment(Player player) {
-        if (ctx.regions().isInside(player.getLocation(), module.regionTag())) {
+        if (bypassRegion || ctx.regions().isInside(player.getLocation(), module.regionTag())) {
             return true;
         }
         ctx.notifications().warn(player, "&cYou must be inside the government building to use this.");

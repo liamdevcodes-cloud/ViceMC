@@ -196,13 +196,13 @@ public final class SupplyShopService {
 
     private Map<String, Integer> loadStock(Business business) {
         return ctx.storage().getModuleData("business", SUPPLY_PREFIX + business.id)
-                .map(json -> {
+                .<Map<String, Integer>>map(json -> {
                     Map<String, Integer> map = net.vicemc.api.util.Json.fromJson(
                             json, new com.google.gson.reflect.TypeToken<Map<String, Integer>>() {
                             }.getType());
                     return map != null ? new HashMap<>(map) : new HashMap<>();
                 })
-                .orElseGet(HashMap::new);
+                .orElseGet(() -> new HashMap<>());
     }
 
     private void saveStock(Business business, Map<String, Integer> stock) {
